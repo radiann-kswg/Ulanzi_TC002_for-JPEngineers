@@ -1,0 +1,62 @@
+import importlib.util
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+from studio import setup
+
+
+class SetupTest(unittest.TestCase):
+    def test_build_uses_selected_paths_without_splitting_spaces(self):
+        with patch.object(setup, "store_paths") as store, patch.object(setup, "run_logged") as run:
+            run.return_value = Path("prepare.log")
+            setup.build_project("E:/IDE root", "F:/source tree", prepare_only=True)
+            self.assertEqual(run.call_args.args[0][-5:],
+                             ["--ide", "E:/IDE root", "--sample", "F:/source tree", "--prepare-only"])
+            store.assert_called_once_with("E:/IDE root", "F:/source tree")
+
+    def test_saved_device_and_ide_override(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            path = root / "local.json"
+            with self.assertRaises(ValueError):
+                setup.device_target(path, temp)
+            path.write_text(json.dumps({"device": "192.0.2.1"}))
+            adb = root / "sdk/platform-tools/adb/adb.exe"
+            adb.parent.mkdir(parents=True)
+            adb.touch()
+            address, selected = setup.device_target(path, temp)
+            self.assertEqual(address, "192.0.2.1")
+            self.assertEqual(Path(selected), adb.resolve())
+
+    def test_restore_only_changes_our_config_and_checks_remote_result(self):
+        script = setup.ROOT / "scripts/debug-device.py"
+        spec = importlib.util.spec_from_file_location("debug_device", script)
+        device = importlib.util.module_from_spec(spec)
+        with patch.object(sys, "path", [str(script.parent), *sys.path]):
+            spec.loader.exec_module(device)
+        own = json.dumps({"startupLibPath": device.LIBRARY}).encode()
+        other = json.dumps({"startupLibPath": "/tmp/other.so", "comment": device.LIBRARY}).encode()
+        for existing in (other, b"invalid", b'{"startupLibPath":null}'):
+            with patch.object(device.subprocess, "check_output", side_effect=[b"", existing]) as adb:
+                with self.assertRaises(RuntimeError):
+                    device.debug("192.0.2.1", "adb", True)
+                self.assertEqual(adb.call_count, 2)
+        resident = b'{"startupLibPath":"/res/lib/libzkgui.so"}'
+        for output in (b"TC002_RESTORED", b"error"):
+            replies = [b"", own, own, resident, b"TC002_SAVED", output, b"TC002_RESIDENT"]
+            with patch.object(device.subprocess, "check_output", side_effect=replies):
+                if output == b"error":
+                    with self.assertRaises(RuntimeError):
+                        device.debug("192.0.2.1", "adb", True)
+                else:
+                    device.debug("192.0.2.1", "adb", True)
+        # After the config moved but service restart failed, a second Restore retries the service.
+        replies = [b"", b"TC002_NO_CONFIG", b"TC002_NO_CONFIG", b"TC002_RETRY", resident,
+                   b"", b"TC002_RESTORED", b"TC002_RESIDENT"]
+        with patch.object(device.subprocess, "check_output", side_effect=replies) as adb:
+            device.debug("192.0.2.1", "adb", True)
+            self.assertTrue(any("setprop ctl.restart zkswe" in c.args[0][-1] for c in adb.call_args_list))

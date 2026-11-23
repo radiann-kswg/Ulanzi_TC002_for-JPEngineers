@@ -7,6 +7,8 @@ from bridge import config
 from .jobs import TaskStatus, active_task
 from .runner import bridge_action
 from .settings import Fields, save
+from .setup_tab import add_setup_tab
+from .setup import device_target
 
 
 class SettingsTab(ttk.Frame):
@@ -135,6 +137,11 @@ class SettingsTab(ttk.Frame):
                 return
             if not self.persist():
                 return
+            try:
+                device_target(self.path, "")
+            except (OSError, ValueError) as error:
+                self.status.message(str(error))
+                return
         titles = {"start": "ブリッジを起動しています…", "stop": "停止を待っています…", "status": "状態を確認しています…"}
         self.status.run(titles[action], lambda: bridge_action(action), self.bridge_buttons)
 
@@ -146,17 +153,10 @@ def create_window(root, config_path=config.CONFIG):
     ttk.Style(root).configure("Heading.TLabel", font=("Yu Gothic UI", 12, "bold"))
     ttk.Label(body, text="TC002 Studio", font=("Yu Gothic UI", 19, "bold")).pack(anchor="w", pady=(0, 8))
     notebook = ttk.Notebook(body)
-    notebook.config_path = Path(config_path)
     notebook.pack(fill="both", expand=True)
     settings = SettingsTab(notebook, config_path)
     notebook.add(settings, text="接続と表示")
-    try:
-        from .setup_tab import add_setup_tab
-    except ModuleNotFoundError as error:
-        if error.name != "studio.setup_tab":
-            raise
-    else:
-        add_setup_tab(notebook)
+    add_setup_tab(notebook, Path(config_path))
     notebook.enable_traversal()
 
     def close():
