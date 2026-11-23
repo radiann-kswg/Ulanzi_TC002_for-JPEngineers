@@ -10,6 +10,16 @@ from studio import setup
 
 
 class SetupTest(unittest.TestCase):
+    def test_gui_setup_starts_console_workers(self):
+        gui = Path("Program Files") / "Python312/pythonw.exe"
+        with patch.object(sys, "executable", str(gui)), patch.object(setup, "store_paths"), \
+                patch.object(setup, "run_logged", return_value=Path("task.log")) as run:
+            setup.setup_tools("", "")
+            setup.build_project("SDK", "")
+            setup.debug_device("192.0.2.1", "adb", restore=True)
+        self.assertEqual([Path(call.args[0][0]) for call in run.call_args_list],
+                         [gui.with_name("python.exe")] * 4)
+
     def test_build_uses_selected_paths_without_splitting_spaces(self):
         with patch.object(setup, "store_paths") as store, patch.object(setup, "run_logged") as run:
             run.return_value = Path("prepare.log")

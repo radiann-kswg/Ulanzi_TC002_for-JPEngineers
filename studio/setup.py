@@ -4,10 +4,10 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import tempfile
 
 from bridge.config import adb_command, read, update
+from .runner import console_python
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "build/TC002Dev"
@@ -44,7 +44,7 @@ def run_logged(args, action):
 
 def setup_tools(ide, sample):
     store_paths(ide, sample)
-    python = sys.executable
+    python = console_python()
     for target, requirements in (("bridge-deps", ["-r", str(ROOT / "bridge/requirements.txt")]),
                                  ("audio-tools", ["imageio-ffmpeg==0.6.0"])):
         run_logged([python, "-m", "pip", "install", "--disable-pip-version-check", "--upgrade",
@@ -53,7 +53,7 @@ def setup_tools(ide, sample):
 
 
 def build_project(ide, sample, prepare_only=False):
-    args = [sys.executable, str(ROOT / "scripts/build-device.py")]
+    args = [console_python(), str(ROOT / "scripts/build-device.py")]
     if ide:
         args.extend(["--ide", ide])
     elif not prepare_only:
@@ -92,7 +92,7 @@ def device_target(config_path, ide):
 def debug_device(address, adb, restore):
     if not restore and not (PROJECT / "Release/libzkgui.so").is_file():
         raise ValueError("先に「ARM ビルド」を実行してください。")
-    args = [sys.executable, str(ROOT / "scripts/debug-device.py"), address, "--adb", adb]
+    args = [console_python(), str(ROOT / "scripts/debug-device.py"), address, "--adb", adb]
     if restore:
         args.append("--restore")
     run_logged(args, "restore" if restore else "debug")

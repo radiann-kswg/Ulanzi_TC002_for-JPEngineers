@@ -9,14 +9,19 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def bridge_action(action):
+def console_python():
+    """Use the console interpreter for background commands started by pythonw."""
     executable = Path(sys.executable)
     if executable.name.lower() == "pythonw.exe":
         executable = executable.with_name("python.exe")
+    return str(executable)
+
+
+def bridge_action(action):
     command = ["powershell.exe", "-NoLogo", "-NoProfile", "-NonInteractive", "-ExecutionPolicy",
                "Bypass", "-File", str(ROOT / "scripts/start-bridge.ps1")]
     if action == "start":
-        command.extend(["-Python", str(executable)])
+        command.extend(["-Python", console_python()])
     elif action in ("stop", "status"):
         command.append("-" + action.capitalize())
     else:
