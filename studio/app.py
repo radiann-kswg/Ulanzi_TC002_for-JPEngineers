@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from bridge import config
+from . import APP_NAME
 from .jobs import TaskStatus, active_task
 from .runner import bridge_action
 from .settings import Fields, save
@@ -147,11 +148,11 @@ class SettingsTab(ttk.Frame):
 
 
 def create_window(root, config_path=config.CONFIG):
-    root.title("TC002 Studio")
+    root.title(APP_NAME)
     body = ttk.Frame(root, padding=(16, 10))
     body.pack(fill="both", expand=True)
     ttk.Style(root).configure("Heading.TLabel", font=("Yu Gothic UI", 12, "bold"))
-    ttk.Label(body, text="TC002 Studio", font=("Yu Gothic UI", 19, "bold")).pack(anchor="w", pady=(0, 8))
+    ttk.Label(body, text=APP_NAME, font=("Yu Gothic UI", 19, "bold")).pack(anchor="w", pady=(0, 8))
     notebook = ttk.Notebook(body)
     notebook.pack(fill="both", expand=True)
     settings = SettingsTab(notebook, config_path)
@@ -162,7 +163,7 @@ def create_window(root, config_path=config.CONFIG):
     def close():
         if active_task(root):
             messagebox.showinfo("処理中", "処理が完了してから閉じてください。", parent=root)
-        elif not settings.dirty or messagebox.askyesno("TC002 Studio", "変更を保存せずに閉じますか？", parent=root):
+        elif not settings.dirty or messagebox.askyesno(APP_NAME, "変更を保存せずに閉じますか？", parent=root):
             root.destroy()
 
     def shortcut(event):

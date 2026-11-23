@@ -1,6 +1,6 @@
 # 同梱素材とビルド時の依存物
 
-TC002 Studio のオリジナル部分の著作権は © 2026 TC002 Studio contributors に帰属します。ライセンスの適用範囲は [LICENSE](LICENSE) を参照してください。
+本プロジェクトのオリジナル部分の著作権は © 2026 TC002 Studio contributors に帰属します。ライセンスの適用範囲は [LICENSE](LICENSE) を参照してください。
 
 ## 同梱するビットマップフォント
 

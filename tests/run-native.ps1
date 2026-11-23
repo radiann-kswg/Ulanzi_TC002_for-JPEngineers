@@ -10,7 +10,7 @@ if (-not $IdeRoot) {
         $IdeRoot = (Get-Content -LiteralPath $savedPaths -Raw -Encoding UTF8 | ConvertFrom-Json).ide
     }
 }
-if (-not $IdeRoot) { throw 'Specify -IdeRoot or save the IDE folder in TC002 Studio.' }
+if (-not $IdeRoot) { throw 'Specify -IdeRoot or save the IDE folder in the Windows settings app.' }
 $out = Join-Path $root 'build/native-tests'
 New-Item -ItemType Directory -Force $out | Out-Null
 $compiler = Join-Path $IdeRoot 'sdk/toolchains/z21/bin/arm-pc-linux-gnueabihf-g++.exe'

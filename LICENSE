@@ -1,4 +1,4 @@
-TC002 Studio uses two source-code licenses.
+Ulanzi_TC002_for-JPEngineers uses two source-code licenses.
 
 The device firmware in firmware/, including the original synthesized sound
 cues in firmware/assets/audio/, and its device-side C++ tests in

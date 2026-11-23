@@ -15,7 +15,7 @@ where pythonw.exe >nul 2>nul
 if not errorlevel 1 (
     pythonw -c "import sys,tkinter;sys.exit(sys.version_info[:2] != (3,12))" && (start "" pythonw -m studio & goto done)
 )
-echo TC002 Studio requires Python 3.12 with Tcl/Tk.
+echo This application requires Python 3.12 with Tcl/Tk.
 echo Install the Windows desktop edition from python.org, then try again.
 pause
 popd
