@@ -1,0 +1,16 @@
+TC002 Studio uses two source-code licenses.
+
+The device firmware in firmware/, including the original synthesized sound
+cues in firmware/assets/audio/, and its device-side C++ tests in
+tests/native/ and tests/system/ are available under the GNU General Public
+License, version 3 or any later version (SPDX: GPL-3.0-or-later).
+See licenses/GPL-3.0.txt.
+
+The Windows application, bridge, PC-side scripts and tests, and accompanying
+documentation are available under the MIT License. See licenses/MIT.txt.
+
+Font data in firmware/assets/ is separately licensed under the SIL Open
+Font License 1.1. Each font's copyright notice and license are included in
+firmware/assets/licenses/. The same font licenses apply to the glyphs shown
+in the display previews. See THIRD_PARTY_NOTICES.md for attribution and
+for the terms that accompany components obtained during a device build.
