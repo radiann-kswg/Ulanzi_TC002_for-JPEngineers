@@ -3,6 +3,7 @@ import locale
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -20,12 +21,16 @@ def bridge_action(action):
         command.append("-" + action.capitalize())
     else:
         raise ValueError("Unknown bridge action")
-    result = subprocess.run(command, cwd=ROOT, timeout=65, capture_output=True,
-                            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    # A detached worker can inherit PowerShell's output handles. Reading a file
+    # after PowerShell exits doesn't wait for the worker to close those handles.
+    with tempfile.TemporaryFile() as log:
+        result = subprocess.run(command, cwd=ROOT, timeout=65, stdout=log, stderr=subprocess.STDOUT,
+                                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        log.seek(0)
+        output = log.read().decode(locale.getpreferredencoding(False), errors="replace")
     if result.returncode:
-        detail = result.stderr.decode(locale.getpreferredencoding(False), errors="replace").strip()
+        detail = output.strip()
         raise RuntimeError("ブリッジの操作に失敗しました。\n" + (detail[:500] or "build/bridge/runner.err を確認してください。"))
-    output = result.stdout.decode("ascii", errors="replace")
     if "Finishing current requests" in output:
         return "停止処理中です。しばらくしてから状態を確認してください。"
     if "stopped" in output:

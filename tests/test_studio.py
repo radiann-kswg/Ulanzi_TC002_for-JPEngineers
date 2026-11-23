@@ -1,7 +1,9 @@
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -103,9 +105,15 @@ class SettingsTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def command_result(self, message, returncode=0):
+        def run(command, *, stdout, **kwargs):
+            stdout.write(message)
+            return subprocess.CompletedProcess(command, returncode)
+        return run
+
     @patch.object(runner.subprocess, "run")
     def test_start_uses_matching_console_interpreter_as_single_argument(self, run):
-        run.return_value = subprocess.CompletedProcess([], 0, b"PC bridge started (PID 10).", b"")
+        run.side_effect = self.command_result(b"PC bridge started (PID 10).")
         with patch.object(runner.sys, "executable", str(Path("Program Files") / "Python312/pythonw.exe")):
             self.assertIn("実行中", runner.bridge_action("start"))
         args = run.call_args.args[0]
@@ -114,10 +122,39 @@ class RunnerTests(unittest.TestCase):
 
     @patch.object(runner.subprocess, "run")
     def test_stopping_and_failure_messages(self, run):
-        run.return_value = subprocess.CompletedProcess([], 0, b"Finishing current requests.", b"")
+        run.side_effect = self.command_result(b"Finishing current requests.")
         self.assertIn("停止処理中", runner.bridge_action("stop"))
         self.assertEqual(run.call_args.args[0][-1], "-Stop")
-        run.return_value = subprocess.CompletedProcess([], 1, b"", b"startup failed")
+        run.side_effect = self.command_result(b"startup failed", 1)
         with self.assertRaisesRegex(RuntimeError, "startup failed"):
             runner.bridge_action("status")
         self.assertEqual(run.call_args.args[0][-1], "-Status")
+
+    @unittest.skipUnless(os.name == "nt", "exercises the Windows PowerShell bridge launcher")
+    def test_start_returns_while_detached_worker_is_running(self):
+        with tempfile.TemporaryDirectory() as temp:
+            project = Path(temp)
+            scripts = project / "scripts"
+            scripts.mkdir()
+            shutil.copyfile(runner.ROOT / "scripts/start-bridge.ps1", scripts / "start-bridge.ps1")
+            # A finite deadline also lets this test finish with the old pipe-backed runner.
+            (project / "bridge.py").write_text(
+                "from pathlib import Path\nimport time\n"
+                "deadline = time.monotonic() + 8\n"
+                "while not Path('stop').exists() and time.monotonic() < deadline:\n"
+                "    time.sleep(0.05)\n"
+                "Path('finished').touch()\n", encoding="ascii")
+            with patch.object(runner, "ROOT", project):
+                try:
+                    self.assertIn("実行中", runner.bridge_action("start"))
+                    self.assertFalse((project / "finished").exists())
+                finally:
+                    (project / "stop").touch()
+                    pid_file = project / "build/bridge/runner.pid"
+                    if pid_file.exists():
+                        pid = int(pid_file.read_text())
+                        subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command",
+                                        f"Get-Process -Id {pid} -ErrorAction SilentlyContinue | "
+                                        "Wait-Process -Timeout 10"], timeout=15,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
+            self.assertTrue((project / "finished").exists())
