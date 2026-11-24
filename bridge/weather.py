@@ -1,6 +1,7 @@
 import json
 from urllib.parse import urlencode
 from urllib.request import urlopen
+from . import geocoding
 
 AKO = {"name":"赤穂市","lat":34.754974,"lon":134.390354}
 
@@ -9,9 +10,7 @@ def request(url, params):
         return json.load(response)
 
 def search(name):
-    hits = request("https://msearch.gsi.go.jp/address-search/AddressSearch", {"q":name})
-    return [{"name":h["properties"]["title"], "lat":h["geometry"]["coordinates"][1],
-             "lon":h["geometry"]["coordinates"][0]} for h in hits if h["geometry"]["type"]=="Point"]
+    return [{"name": hit.name, "lat": hit.latitude, "lon": hit.longitude} for hit in geocoding.search(name)]
 
 def description(code):
     if code == 0: return "快晴"
