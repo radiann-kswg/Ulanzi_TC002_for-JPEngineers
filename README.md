@@ -2,7 +2,11 @@
 
 Ulanzi TC002 の 52 × 16 ドット画面で日本語の時計、タイマー、天気、開発作業の状況を表示するコミュニティプロジェクトです。Windows設定アプリ **Ulanzi TC002 JPエンジニア向けOS設定** と、時計の既存 Linux 上で動く独自の機器側アプリを同梱しています。Windows から接続と表示内容を設定し、このリポジトリのソースから自分の TC002 用のアプリを作成できます。
 
-![TC002 の時刻、世界時計、カレンダー、天気、タイマーの画面](docs/panel-preview.png)
+![日本語で時刻と曜日を表示する Ulanzi TC002 の実機と、世界時計・天気・ポモドーロなどの表示例](docs/ulanzi-tc002-for-jp-engineers.png)
+
+| Windows 設定アプリ「接続と表示」 | Windows 設定アプリ「OS セットアップ」 |
+| --- | --- |
+| [![時計の接続先や天気の取得地点を設定する画面](docs/studio-settings.png)](docs/studio-settings.png) | [![機器側アプリのビルドや TF カードの準備を行う画面](docs/studio-setup.png)](docs/studio-setup.png) |
 
 ## 初めて電源を入れる方へ
 
