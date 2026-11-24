@@ -124,7 +124,7 @@ class SettingsPage(ttk.Frame):
             self.notice.set("")
             self.status.message(f"設定を読み込めません。ファイルを確認し、再読み込みしてください。\n{error}")
             return
-        self.status.message("設定を読み込みました。" if self.path.exists() else "初回設定です。時計に表示された IP アドレスを入力してください。")
+        self.status.message("設定を読み込みました。" if self.path.exists() else "初回設定です。標準OSで時計を 2.4 GHz Wi-Fi に接続し、「4 - Tools → IP Address」の IPv4 を入力してください。")
 
     def reload(self):
         if not self.dirty or messagebox.askyesno("再読み込み", "未保存の変更を破棄して設定を読み込みますか？", parent=self):

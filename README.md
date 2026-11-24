@@ -4,6 +4,14 @@ Ulanzi TC002 の 52 × 16 ドット画面で日本語の時計、タイマー、
 
 ![TC002 の時刻、世界時計、カレンダー、天気、タイマーの画面](docs/panel-preview.png)
 
+## 初めて電源を入れる方へ
+
+**一時実行と PC ブリッジには、標準OSでの Wi-Fi 接続が必要です。** すでに時計が PC と同じ LAN に再接続できる場合は、手順3から進めます。PC 上でのビルド、更新イメージの作成、TF カードの準備は時計の電源が切れた状態でも行えます。常設後も天気や開発情報を表示したい場合は、TF カードで更新する前に標準OSで Wi-Fi を設定してください。
+
+1. TC002 の電源を入れ、初回の `CONNECT` 画面を待ちます。スマートフォンか PC の Wi-Fi 設定で時計の `U-Clock` に接続します。初期パスワードは公式ガイドに記載されています。[公式の初回接続ガイド（画面付き）](https://docs.ulanzistudio.com/tc002/en/software/web-setup.html)
+2. 時計の Wi-Fi に接続したままブラウザーで `http://192.168.100.1` を開き、利用する **2.4 GHz** の Wi-Fi の SSID とパスワードを保存します。時計に `READY` が表示されたら、スマートフォンや PC を元の LAN に戻します。
+3. 時計のノブで **4 - Tools → IP Address** を開き、ルーターが時計に割り当てた IPv4 アドレスを確認します。この値を下の手順で「時計の IPv4 アドレス」に入力します。
+
 ## クイックスタート
 
 1. このリポジトリを Windows PC の書き込み可能なフォルダーにクローンするか、ソース ZIP を完全に展開します。Windows 版 Python 3.12（Tk、pip、Python ランチャーを含む）と Git for Windows を用意します。[Python](https://www.python.org/downloads/windows/)・[Git for Windows](https://gitforwindows.org/)
