@@ -1,179 +1,147 @@
-"""Native Windows controls for the TC002 bridge and setup workflow."""
+"""Native workspace for configuring a TC002 and preparing its device software."""
 from pathlib import Path
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import messagebox, ttk
 
 from bridge import config
-from . import APP_NAME
-from .jobs import TaskStatus, active_task
-from .runner import bridge_action
-from .settings import Fields, save
-from .setup_tab import add_setup_tab
-from .setup import device_target
+from . import APP_NAME, theme
+from .jobs import TaskStatus
+from .settings_page import SettingsPage
+from .setup_tab import create_setup_page
+from .viewport import Viewport, bind_scrolling
 
 
-class SettingsTab(ttk.Frame):
-    def __init__(self, notebook, config_path):
-        super().__init__(notebook, padding=(18, 14))
-        self.path = Path(config_path)
-        self.baseline = None
-        self.variables = {key: tk.StringVar(self) for key in Fields.__dataclass_fields__}
-        self.columnconfigure(0, weight=1)
-        self.columnconfigure(1, weight=1)
+ASSETS = Path(__file__).with_name("assets")
+PAGES = {"settings": "接続と表示", "setup": "OS セットアップ"}
 
-        clock = ttk.LabelFrame(self, text="時計と天気", padding=12)
-        clock.grid(row=0, column=0, padx=(0, 7), sticky="nsew")
-        clock.columnconfigure(0, weight=1)
-        self.device = self.entry(clock, 0, "時計の IPv4 アドレス", "device")
-        self.entry(clock, 2, "地点の表示名（天気は下の座標で取得）", "name")
-        coords = ttk.Frame(clock)
-        coords.grid(row=4, column=0, sticky="ew")
-        for column, (label, key) in enumerate((("緯度", "lat"), ("経度", "lon"))):
-            coords.columnconfigure(column, weight=1)
-            part = ttk.Frame(coords)
-            part.grid(row=0, column=column, padx=(0, 5) if column == 0 else (5, 0), sticky="ew")
-            part.columnconfigure(0, weight=1)
-            self.entry(part, 0, label, key, width=12)
 
-        source = ttk.LabelFrame(self, text="PC との連携", padding=12)
-        source.grid(row=0, column=1, padx=(7, 0), sticky="nsew")
-        source.columnconfigure(0, weight=1)
-        self.entry(source, 0, "GitHub 所有者（指定すると所有リポジトリ全体）", "owner")
-        self.entry(source, 2, "個別のリポジトリ（owner/name をコンマ区切り）", "repos")
-        ttk.Label(source, text="ADB（空欄で SDK または PATH から検出）").grid(row=4, sticky="w")
-        adb = ttk.Frame(source)
-        adb.grid(row=5, sticky="ew", pady=(3, 0))
-        adb.columnconfigure(0, weight=1)
-        ttk.Entry(adb, textvariable=self.variables["adb"]).grid(row=0, column=0, sticky="ew")
-        ttk.Button(adb, text="参照…", command=self.browse, width=7).grid(row=0, column=1, padx=(5, 0))
+class StudioWindow:
+    def __init__(self, root, config_path):
+        self.root = root
+        self.config_path = Path(config_path)
+        self.current = None
+        self.setup = None
+        theme.apply(root)
+        root.title(APP_NAME)
+        density = root.winfo_fpixels("1i") / 96
+        available = root.winfo_screenwidth() - 16, root.winfo_screenheight() - 85
+        dimensions = tuple(min(round(n * density), limit) for n, limit in zip((1100, 760), available))
+        root.geometry("%dx%d" % dimensions)
+        root.minsize(*(min(round(n * density), limit) for n, limit in zip((860, 530), available)))
+        root.columnconfigure(0, weight=1)
+        root.rowconfigure(1, weight=1)
 
-        actions = ttk.Frame(self)
-        actions.grid(row=1, column=0, columnspan=2, sticky="ew", pady=(12, 16))
-        self.save_button = ttk.Button(actions, text="設定を保存", command=self.persist)
-        self.save_button.pack(side="left")
-        ttk.Button(actions, text="再読み込み", command=self.reload).pack(side="left", padx=6)
-        self.notice = tk.StringVar(self)
-        ttk.Label(actions, textvariable=self.notice).pack(side="left", padx=4)
-        ttk.Separator(self).grid(row=2, column=0, columnspan=2, sticky="ew")
+        self.icon = tk.PhotoImage(master=root, file=ASSETS / "icon.png")
+        self.brand_icon = self.icon.subsample(2)
+        root.iconphoto(True, self.icon)
+        header = ttk.Frame(root, style="Header.TFrame", padding=(20, 9))
+        header.grid(row=0, column=0, columnspan=2, sticky="ew")
+        ttk.Label(header, image=self.brand_icon, style="Brand.TLabel").pack(side="left", padx=(0, 10))
+        ttk.Label(header, text="Ulanzi TC002", style="Brand.TLabel").pack(side="left")
+        tk.Frame(header, bg=theme.EDGE, width=1, height=18).pack(side="left", padx=14)
+        ttk.Label(header, text="JPエンジニア向けOS設定", style="BrandDetail.TLabel").pack(side="left")
 
-        controls = ttk.Frame(self)
-        controls.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(14, 0))
-        controls.columnconfigure(0, weight=1)
-        ttk.Label(controls, text="PC ブリッジ", style="Heading.TLabel").grid(row=0, column=0, sticky="w")
-        ttk.Label(controls, text="PC が取得した天気・開発サービスの表示データを時計に送ります。",
-                  wraplength=580, justify="left").grid(row=1, column=0, sticky="w", pady=(4, 8))
-        buttons = ttk.Frame(controls)
-        buttons.grid(row=2, column=0, sticky="w")
-        self.bridge_buttons = []
-        for label, action in (("保存して起動", "start"), ("停止", "stop"), ("状態を確認", "status")):
-            button = ttk.Button(buttons, text=label, command=lambda op=action: self.operate(op))
-            button.pack(side="left", padx=(0, 6))
-            self.bridge_buttons.append(button)
-        self.status = TaskStatus(self)
-        self.status.grid(row=4, column=0, columnspan=2, sticky="ew", pady=(12, 0))
-        for var in self.variables.values():
-            var.trace_add("write", self.changed)
-        self.load()
+        rail = ttk.Frame(root, style="Rail.TFrame", padding=(14, 18))
+        rail.grid(row=1, column=1, rowspan=2, sticky="nsew")
+        self.nav = {}
+        ttk.Label(rail, text="設定メニュー", style="Rail.TLabel").pack(anchor="w", padx=4, pady=(0, 8))
+        self.glyphs = {}
+        for key, title in PAGES.items():
+            glyph = self.nav_icon(key)
+            self.glyphs[key] = glyph
+            button = ttk.Button(rail, text=title, image=glyph, compound="left", style="Nav.TButton",
+                                command=lambda page=key: self.show_page(page))
+            button.pack(fill="x", pady=(0, 4))
+            self.nav[key] = button
+        tk.Frame(rail, bg=theme.EDGE, height=1).pack(fill="x", pady=16)
+        ttk.Label(rail, text="対象の時計", style="Rail.TLabel").pack(anchor="w", padx=4, pady=(0, 8))
+        self.target = tk.StringVar(root)
+        self.device_card(rail)
 
-    def entry(self, parent, row, text, key, width=24):
-        ttk.Label(parent, text=text).grid(row=row, column=0, sticky="w")
-        entry = ttk.Entry(parent, textvariable=self.variables[key], width=width)
-        entry.grid(row=row+1, column=0, sticky="ew", pady=(3, 10))
-        return entry
+        workspace = ttk.Frame(root, padding=(18, 10, 16, 12))
+        workspace.grid(row=1, column=0, sticky="nsew")
+        workspace.columnconfigure(0, weight=1)
+        workspace.rowconfigure(1, weight=1)
+        self.heading = ttk.Label(workspace, style="Page.TLabel")
+        self.heading.grid(row=0, column=0, sticky="w", pady=(0, 9))
+        self.status = TaskStatus(root)
+        self.status.grid(row=2, column=0, sticky="ew")
+        self.pages = {key: Viewport(workspace) for key in PAGES}
+        self.settings = SettingsPage(self.pages["settings"].content, self.config_path, self.status)
+        self.settings.pack(fill="x")
+        self.settings.saved_device.trace_add("write", self.update_target)
+        self.update_target()
+        self.show_page("settings")
+        bind_scrolling(root)
+        root.bind("<Control-s>", self.shortcut_save)
+        for sequence in ("<Control-Tab>", "<Control-Shift-Tab>", "<Control-Next>", "<Control-Prior>"):
+            root.bind(sequence, self.shortcut_switch)
+        root.protocol("WM_DELETE_WINDOW", self.close)
 
-    def values(self):
-        return Fields(**{key: variable.get() for key, variable in self.variables.items()})
+    def nav_icon(self, key):
+        # The extra transparent columns keep the icon clear of its button label.
+        image = tk.PhotoImage(master=self.root, width=26, height=18)
+        if key == "settings":
+            marks = ((1, 4, 17, 6), (4, 2, 7, 8), (1, 12, 17, 14), (11, 10, 14, 16))
+        else:
+            marks = ((8, 1, 10, 10), (5, 6, 7, 8), (7, 8, 11, 10), (11, 6, 13, 8),
+                     (1, 11, 3, 16), (15, 11, 17, 16), (2, 14, 16, 16))
+        for rect in marks:
+            image.put(theme.MUTED, to=rect)
+        return image
 
-    @property
-    def dirty(self):
-        return self.baseline is not None and self.values() != self.baseline
+    def device_card(self, rail):
+        card = ttk.Frame(rail, style="Card.TFrame", padding=12)
+        card.pack(fill="x")
+        ttk.Label(card, text="TC002", style="CardTitle.TLabel").pack(anchor="w")
+        ttk.Label(card, text="保存済みの接続先", style="CardMuted.TLabel").pack(anchor="w", pady=(6, 0))
+        ttk.Label(card, textvariable=self.target, style="Card.TLabel", width=17,
+                  font=(theme.FONT, 12, "bold")).pack(anchor="w", pady=(2, 0))
+        tk.Frame(card, bg=theme.EDGE, height=1).pack(fill="x", pady=(12, 0))
+        self.clock_image = tk.PhotoImage(master=self.root, file=ASSETS / "tc002.png").subsample(2)
+        ttk.Label(card, image=self.clock_image, style="Card.TLabel").pack(pady=(10, 3))
+        ttk.Label(card, text="時計画面の表示例（52 × 16）", style="CardMuted.TLabel").pack(anchor="center")
 
-    def changed(self, *_):
-        self.notice.set("未保存の変更があります" if self.dirty else "")
+    def update_target(self, *_):
+        self.target.set(self.settings.saved_device.get() or
+                        ("読み込みエラー" if self.settings.baseline is None else "未設定"))
 
-    def populate(self, fields):
-        self.baseline = fields
-        for key, variable in self.variables.items():
-            variable.set(getattr(fields, key))
-
-    def load(self):
-        try:
-            self.populate(Fields.from_document(config.read(self.path)))
-        except (OSError, ValueError) as error:
-            self.baseline = None
-            self.status.message(f"設定を読み込めません。ファイルを確認し、再読み込みしてください。\n{error}")
+    def show_page(self, key):
+        if self.current == key:
             return
-        self.status.message("設定を読み込みました。" if self.path.exists() else "初回設定です。時計に表示された IP アドレスを入力してください。")
+        if self.current is not None:
+            previous = self.pages[self.current]
+            self.nav[self.current].configure(style="Nav.TButton")
+            focus = self.root.focus_get()
+            if focus and str(focus).startswith(str(previous) + "."):
+                self.nav[key].focus_set()
+            previous.grid_remove()
+        if key == "setup" and self.setup is None:
+            self.setup = create_setup_page(self.pages[key].content, self.config_path, self.status)
+            self.setup.pack(fill="x")
+        self.current = key
+        self.heading.configure(text=PAGES[key])
+        self.nav[key].configure(style="Selected.Nav.TButton")
+        self.pages[key].grid(row=1, column=0, sticky="nsew")
 
-    def reload(self):
-        if not self.dirty or messagebox.askyesno("再読み込み", "未保存の変更を破棄して設定を読み込みますか？", parent=self):
-            self.load()
+    def shortcut_save(self, _event):
+        if self.current == "settings" and not self.status.busy:
+            self.settings.persist()
+        return "break"
 
-    def persist(self):
-        if self.baseline is None:
-            self.status.message("設定を再読み込みしてから保存してください。")
-            return False
-        try:
-            self.populate(save(self.path, self.baseline, self.values()))
-        except (OSError, ValueError) as error:
-            self.status.message(f"設定を保存できません。{error}")
-            return False
-        self.status.message("設定を保存しました。")
-        return True
+    def shortcut_switch(self, _event):
+        self.show_page("setup" if self.current == "settings" else "settings")
+        return "break"
 
-    def browse(self):
-        path = filedialog.askopenfilename(parent=self, title="Android Debug Bridge を選択",
-                                          filetypes=[("Android Debug Bridge", "adb.exe")])
-        if path:
-            self.variables["adb"].set(path)
-
-    def operate(self, action):
+    def close(self):
         if self.status.busy:
-            self.status.message("処理が完了するまでお待ちください。")
-            return
-        if action == "start":
-            if not self.variables["device"].get().strip():
-                self.status.message("時計の IPv4 アドレスを入力してから起動してください。")
-                self.device.focus_set()
-                return
-            if not self.persist():
-                return
-            try:
-                device_target(self.path, "")
-            except (OSError, ValueError) as error:
-                self.status.message(str(error))
-                return
-        titles = {"start": "ブリッジを起動しています…", "stop": "停止を待っています…", "status": "状態を確認しています…"}
-        self.status.run(titles[action], lambda: bridge_action(action), self.bridge_buttons)
+            messagebox.showinfo("処理中", "処理が完了してから閉じてください。", parent=self.root)
+        elif not self.settings.dirty or messagebox.askyesno(APP_NAME, "変更を保存せずに閉じますか？", parent=self.root):
+            self.root.destroy()
 
 
 def create_window(root, config_path=config.CONFIG):
-    root.title(APP_NAME)
-    body = ttk.Frame(root, padding=(16, 10))
-    body.pack(fill="both", expand=True)
-    ttk.Style(root).configure("Heading.TLabel", font=("Yu Gothic UI", 12, "bold"))
-    ttk.Label(body, text=APP_NAME, font=("Yu Gothic UI", 19, "bold")).pack(anchor="w", pady=(0, 8))
-    notebook = ttk.Notebook(body)
-    notebook.pack(fill="both", expand=True)
-    settings = SettingsTab(notebook, config_path)
-    notebook.add(settings, text="接続と表示")
-    add_setup_tab(notebook, Path(config_path))
-    notebook.enable_traversal()
-
-    def close():
-        if active_task(root):
-            messagebox.showinfo("処理中", "処理が完了してから閉じてください。", parent=root)
-        elif not settings.dirty or messagebox.askyesno(APP_NAME, "変更を保存せずに閉じますか？", parent=root):
-            root.destroy()
-
-    def shortcut(event):
-        if notebook.select() == str(settings):
-            settings.persist()
-            return "break"
-
-    root.bind("<Control-s>", shortcut)
-    root.protocol("WM_DELETE_WINDOW", close)
-    return notebook
+    return StudioWindow(root, config_path)
 
 
 def main():

@@ -82,10 +82,10 @@ def device_target(config_path, ide):
     try:
         address = str(ipaddress.IPv4Address(conf.get("device", "")))
     except ValueError:
-        raise ValueError("設定タブで時計の IPv4 アドレスを保存してください。") from None
+        raise ValueError("「接続と表示」で時計の IPv4 アドレスを保存してください。") from None
     adb = adb_command(conf, ide)
     if not shutil.which(adb):
-        raise ValueError("ADB が見つかりません。設定タブで adb.exe を指定してください。")
+        raise ValueError("ADB が見つかりません。「接続と表示」で adb.exe を指定してください。")
     return address, adb
 
 

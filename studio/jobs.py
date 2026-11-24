@@ -5,64 +5,60 @@ import tkinter as tk
 from tkinter import ttk
 
 
-def active_task(widget):
-    return getattr(widget.winfo_toplevel(), "_tc002_task", None)
-
-
 class TaskStatus(ttk.Frame):
     def __init__(self, parent):
-        super().__init__(parent)
+        super().__init__(parent, style="Status.TFrame", padding=(18, 8))
+        self.busy = False
+        self.buttons = []
         self.columnconfigure(0, weight=1)
         self.text = tk.StringVar(self)
-        self.label = ttk.Label(self, textvariable=self.text, justify="left")
+        self.label = ttk.Label(self, textvariable=self.text, justify="left", style="Status.TLabel")
         self.label.grid(row=0, column=0, sticky="ew")
         self.label.bind("<Configure>", lambda event: self.label.configure(wraplength=max(160, event.width - 4)))
         self.bar = ttk.Progressbar(self, mode="indeterminate", length=72)
         self.bar.grid(row=0, column=1, padx=(12, 0), sticky="e")
         self.bar.grid_remove()
 
-    @property
-    def busy(self):
-        return active_task(self) is not None
+    def register(self, *buttons):
+        self.buttons.extend(buttons)
+        if self.busy:
+            for button in buttons:
+                button.state(["disabled"])
+
+    def set_busy(self, busy):
+        self.busy = busy
+        for button in self.buttons:
+            button.state(["disabled" if busy else "!disabled"])
 
     def message(self, text):
-        self.text.set(text)
+        if not self.busy:
+            self.text.set(text)
 
-    def run(self, title, worker, buttons=(), on_success=None):
+    def run(self, title, worker):
         if self.busy:
-            if active_task(self) is not self:
-                self.message("ほかのタブの処理が完了するまでお待ちください。")
             return False
-        root = self.winfo_toplevel()
-        root._tc002_task = self
-        enabled = [button for button in buttons if button.instate(["!disabled"])]
-        for button in enabled:
-            button.state(["disabled"])
-        self.message(title)
+        self.set_busy(True)
+        self.text.set(title)
         self.bar.grid()
         self.bar.start(35)
         result = Queue(maxsize=1)
 
         def work():
             try:
-                result.put((True, worker()))
+                result.put(worker())
             except Exception as error:
-                result.put((False, str(error) or type(error).__name__))
+                result.put(str(error) or type(error).__name__)
 
         def collect():
             try:
-                ok, value = result.get_nowait()
+                value = result.get_nowait()
             except Empty:
                 self.after(90, collect)
                 return
-            root._tc002_task = None
             self.bar.stop()
             self.bar.grid_remove()
-            for button in enabled:
-                button.state(["!disabled"])
+            self.set_busy(False)
             self.message(value)
-            if ok and on_success:
-                on_success(value)
 
         Thread(target=work, daemon=True).start()
         self.after(90, collect)
