@@ -4,6 +4,7 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
 from bridge import config
+from .map_picker import MapPicker
 from .runner import bridge_action
 from .settings import Fields, save
 from .setup import device_target
@@ -34,6 +35,8 @@ class SettingsPage(ttk.Frame):
         weather = self.card("天気の取得地点", pair)
         weather.grid(row=0, column=1, sticky="nsew", padx=(6, 0))
         weather.columnconfigure((0, 1), weight=1, uniform="coordinates")
+        self.map_button = ttk.Button(weather, text="地図から選ぶ…", command=self.open_map)
+        self.map_button.grid(row=0, column=1, sticky="e", padx=(5, 0))
         self.field(weather, 1, 0, "地点の表示名", "name", span=2)
         self.field(weather, 3, 0, "緯度", "lat", padx=(0, 5))
         self.field(weather, 3, 1, "経度", "lon", padx=(5, 0))
@@ -144,6 +147,14 @@ class SettingsPage(ttk.Frame):
                                          filetypes=[("Android Debug Bridge", "adb.exe")])
         if path:
             self.variables["adb"].set(path)
+
+    def open_map(self):
+        return MapPicker(self, *(self.variables[key].get() for key in ("name", "lat", "lon")), self.use_place)
+
+    def use_place(self, name, lat, lon):
+        for key, value in (("name", name), ("lat", f"{lat:.6f}"), ("lon", f"{lon:.6f}")):
+            self.variables[key].set(value)
+        self.status.message("天気の地点を取り込みました。「設定を保存」で反映します。")
 
     def operate(self, action):
         if self.status.busy:

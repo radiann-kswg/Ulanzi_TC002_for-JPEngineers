@@ -6,6 +6,12 @@
 
 `studio/assets/tc002.png` の時計イラストと `studio/assets/icon.png` のアプリアイコンは、本プロジェクトで描いたオリジナル素材です。Windows アプリと同じ MIT ライセンスで配布します。利用ガイドに掲載する設定画面は、例示用の接続先と設定値を使って撮影しています。
 
+## 地図と住所検索
+
+天気の地点選択画面は、国土地理院から標準地図（ズームレベル2～8）と淡色地図（9～18）を表示時に取得します。日本とその周辺を描く標準地図（5～8）の等深線と海岸線については、「広域図の出典」に配信元指定の表記を掲載しています。[地理院タイル一覧](https://maps.gsi.go.jp/development/ichiran.html)・[広域図の出典](studio/assets/map-credits.txt)・[国土地理院コンテンツ利用規約](https://www.gsi.go.jp/kikakuchousei/kikakuchousei40182.html)
+
+日本の住所検索には、国土地理院のサービスを通じて東京大学空間情報科学研究センターのジオコーディングを使用しています。[CSISシンプルジオコーディング実験を利用](https://geocode.csis.u-tokyo.ac.jp/)・[実験参加規約](https://geocode.csis.u-tokyo.ac.jp/home/simple-geocoding/simple-geocoding-tems-of-use/)
+
 ## 同梱するビットマップフォント
 
 患者長ひっく氏の3書体を時計用に変換しています。配布するフォントデータにはそれぞれの著作権表示と SIL Open Font License 1.1 の全文を添付してください。

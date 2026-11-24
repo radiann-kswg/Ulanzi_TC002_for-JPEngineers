@@ -39,6 +39,13 @@ def apply(root):
                     bordercolor=EDGE, lightcolor=FIELD, darkcolor=FIELD)
     style.map("TEntry", bordercolor=[("focus", ACCENT)],
               lightcolor=[("focus", FIELD)], darkcolor=[("focus", FIELD)])
+    style.configure("TCombobox", padding=(6, 3), arrowcolor=TEXT, background=PANEL, bordercolor=EDGE)
+    style.map("TCombobox", fieldbackground=[("readonly", FIELD)], foreground=[("readonly", TEXT)],
+              selectbackground=[("focus", ACCENT), ("!focus", FIELD)],
+              selectforeground=[("focus", INK), ("!focus", TEXT)], bordercolor=[("focus", ACCENT)])
+    for option, color in (("background", FIELD), ("foreground", TEXT), ("selectBackground", ACCENT),
+                          ("selectForeground", INK)):
+        root.option_add(f"*TCombobox*Listbox.{option}", color)
     for name, background, foreground, border, hover, pressed in (
         ("TButton", "#3a3c43", TEXT, "#50535b", "#474b52", "#323439"),
         ("Accent.TButton", ACCENT, INK, ACCENT, "#83eadf", "#39bcac"),
@@ -61,4 +68,8 @@ def apply(root):
     style.map("TScrollbar", background=[("active", "#737881")])
     style.configure("TProgressbar", background=ACCENT, lightcolor=ACCENT, darkcolor=ACCENT,
                     troughcolor=PANEL, bordercolor=PANEL, thickness=5)
+    style.configure("Link.TButton", background=BASE, foreground=ACCENT, padding=(2, 2),
+                    font=(FONT, 9, "underline"), anchor="w")
+    style.map("Link.TButton", foreground=[("!disabled", ACCENT)], background=[("!disabled", BASE)],
+              lightcolor=[("!disabled", BASE)], darkcolor=[("!disabled", BASE)])
     root.configure(background=BASE)
