@@ -6,6 +6,7 @@ import unicodedata
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from .usage import quota_windows, reset_epoch
 
 JST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,7 +100,17 @@ def snapshot(db, place, now):
         for group, value in data.get("fields", {}).items():
             # A current automatic observation wins; a newer dated import may replace stale data.
             rank = (not stale and not source.startswith("manual"), stamp)
-            if group.endswith(".extra") and "period" in data and data["period"]!=datetime.fromtimestamp(now,JST).strftime("%Y-%m"):
+            if group.endswith(".left"):
+                # Keep the deadline and percentage in the same account observation.
+                resets=data.get("resets",{})
+                current_reset=any(reset_epoch(at) and at>now for at in resets.values())
+                rank=(rank[0],rank[0] and current_reset,stamp)
+                value=quota_windows(value,resets)
+            if group.endswith(".extra") and "period" in data:
+                zone=timezone.utc if source=="github.billing" else JST
+                if data["period"]!=datetime.fromtimestamp(now,zone).strftime("%Y-%m"):
+                    continue
+            if group.endswith((".budget",".creditUsed",".budgetPercent")) and "budgetReset" in data and now>=data["budgetReset"]:
                 continue
             if "periodBounds" in data and not data["periodBounds"][0]<=now<data["periodBounds"][1]:
                 continue
@@ -128,10 +139,11 @@ def snapshot(db, place, now):
         for scope in missing:
             for page in (2,3,4,5): pages[c,page].append((stamp,old,scope))
     for c in range(3):
-        for field, label in (("left","残"),("extra","追加")):
-            obs = groups.get(f"{c}.{field}")
-            pages[c,6].append((obs[1],obs[2],label+" "+obs[3]) if obs else
-                              (0,False,label+" 取得不可"))
+        left=groups.get(f"{c}.left")
+        pages[c,6].append((left[1],left[2],"残 "+left[3]) if left else (0,False,"残 取得不可"))
+        amounts=(groups[k] for k in (f"{c}.extra",f"{c}.budget") if k in groups)
+        extra=max(amounts,key=lambda obs:obs[0],default=None) or groups.get(f"{c}.creditUsed") or groups.get(f"{c}.budgetPercent")
+        pages[c,6].append((extra[1],extra[2],"追加 "+extra[3]) if extra else (0,False,"追加 取得不可"))
     for c, entries in schedules.items():
         listed=set()
         for (uid,due), (_,label,stamp,stale) in sorted(entries.items(),key=lambda item:item[0][1]):
@@ -157,7 +169,7 @@ def snapshot(db, place, now):
             labels.append((f"{'old' if old else 'row'}\t{c}\t{p}\t{stamp}\t".encode(),
                            title.encode(),suffix))
     for due, uid, label in sorted(notices.values())[:128]:
-        lines.append(f"event\t{due}\t{clean(uid,72)}\t{clean(label,44)}")
+        lines.append(f"event\t{due}\t{clean(uid,72)}\t{clean(label,256)}")
     header=("\n".join(lines)+"\n").encode()
     budget=(262144-len(header)-4-sum(len(prefix)+len(suffix)+1 for prefix,_,suffix in labels))//max(1,len(labels))
     wire=bytearray(header)

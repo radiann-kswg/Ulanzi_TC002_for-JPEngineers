@@ -1,13 +1,37 @@
+import asyncio
 import json
 import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 from bridge import desktop, manual, schedules, store, weather
 from bridge.__main__ import main
+from bridge.usage import claude_statusline
 
 class DesktopTest(unittest.TestCase):
+    def test_codex_reports_budget_independently_of_windows_and_balance(self):
+        with patch.object(desktop,"CodexRPC") as rpc:
+            call=AsyncMock()
+            rpc.return_value.__aenter__.return_value.call=call
+            budget={"used":"0.00","limit":"250","resetsAt":2000}
+            call.return_value={"rateLimits":{"credits":{"balance":"99"},"individualLimit":budget}}
+            obs=asyncio.run(desktop.codex_limits())
+            self.assertEqual(obs,{"fields":{"2.budget":"0.00 / 250 cr"},"budgetReset":2000})
+            call.return_value["rateLimitsByLimitId"]={"codex":{"primary":{"usedPercent":20,
+                "windowDurationMins":300,"resetsAt":1800},"credits":{"balance":"500"}}}
+            self.assertEqual(asyncio.run(desktop.codex_limits()),
+                             {"fields":{"2.left":"5h 80%"},"resets":{"5h":1800}})
+
+    def test_claude_spend_and_resets_are_independent(self):
+        data=claude_statusline({"five_hour":{"used_percentage":0,"resets_at":1500},
+              "seven_day":{"used_percentage":75},"spend_limit":{"used_usd":0,"limit_usd":50,
+              "used_percentage":0,"resets_at":2000}})
+        self.assertEqual(data,{"fields":{"1.left":"5h 100% / 7d 25%",
+                         "1.budget":"予算 約0 / 50 USD"},"budgetReset":2000,"resets":{"5h":1500}})
+        data=claude_statusline({"spend_limit":{"used_percentage":110,"resets_at":2000}})
+        self.assertEqual(data["fields"],{"1.budgetPercent":"予算 110%使用"})
+
     def test_claude_agent_states(self):
         raw=[{"sessionId":str(i),"name":"task","state":x} for i,x in enumerate(
             ["working","blocked","done","failed","stopped"])]

@@ -21,13 +21,21 @@ def parse(doc,now):
     if "remainingPercent" in doc:
         value=float(doc["remainingPercent"])
         if not 0<=value<=100: raise ValueError("invalid remainingPercent")
-        obs.append((prefix+"left",{"fields":{f"{c}.left":f"{value:g}%"}}))
+        entry={"fields":{f"{c}.left":f"{value:g}%"}}
+        if "resetsAt" in doc:
+            entry["resets"]={"":timestamp(doc["resetsAt"])}
+        obs.append((prefix+"left",entry))
     if "extraSpent" in doc:
         billing=doc["extraSpent"]
         amount=Decimal(str(billing["amount"]))
         if not amount.is_finite() or amount<0 or not re.fullmatch("[A-Z]{3}",billing["currency"]):
             raise ValueError("invalid billed amount")
-        entry={"fields":{f"{c}.extra":f'{amount:f} {billing["currency"]}'}}
+        spent=f"{amount:f}"
+        if "budget" in billing:
+            budget=Decimal(str(billing["budget"]))
+            if not budget.is_finite() or budget<0: raise ValueError("invalid budget")
+            spent+=f" / {budget:f}"
+        entry={"fields":{f"{c}.extra":f'{spent} {billing["currency"]}'}}
         if "periodEnd" in billing:
             start,end=timestamp(billing["periodStart"]),timestamp(billing["periodEnd"])
             if not start<=stamp<end: raise ValueError("observation outside billing period")

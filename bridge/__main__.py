@@ -13,8 +13,9 @@ import time
 import uuid
 from contextlib import contextmanager
 
-from . import desktop, github, manual, schedules, store, weather
+from . import claude_desktop, desktop, github, manual, schedules, store, weather
 from .config import CONFIG, adb_command, settings, update
+from .usage import claude_statusline
 
 def change_place(path,args):
     if (args.lat is None)!=(args.lon is None): raise ValueError("supply both --lat and --lon")
@@ -49,13 +50,17 @@ def publish(adb,device,wire):
 
 def jobs(conf,db):
     repos=conf["repos"]
+    claude_org=conf.get("claudeOrganization")
     tasks={
         "weather":(900,lambda old,t:weather.observe(conf["place"])),
         "weather.air":(1800,lambda old,t:weather.air(conf["place"])),
         "codex.schedules":(120,lambda old,t:schedules.codex(t,conf.get("timezone","Asia/Tokyo"))),
         "codex.sessions":(30,lambda old,t:asyncio.run(desktop.codex_sessions(t))),
         "codex.limits":(300,lambda old,t:asyncio.run(desktop.codex_limits())),
+        "codex.credits":(300,lambda old,t:asyncio.run(desktop.codex_credits(t))),
         "claude.agents":(30,lambda old,t:desktop.claude_sessions(t,old)),
+        "claude.desktop.limits":(300,lambda old,t:claude_desktop.limits(t,claude_org)),
+        "claude.plan.limits":(300,lambda old,t:claude_desktop.live_limits(claude_org)),
         "github.quota":(300,lambda old,t:github.quota()),
         "github.billing":(1800,lambda old,t:github.billing(t)),
     }
@@ -111,7 +116,7 @@ def serve(db,conf,device,once,out,reload_config=lambda:False):
                 if not future.done(): continue
                 try:
                     data=future.result()
-                    store.save(db,name,data,now,max(90,tasks[name][0]*2))
+                    store.save(db,name,data,data.get("observedAt",now),max(90,tasks[name][0]*2))
                     status="OK"
                 except Exception as exc:
                     store.failed(db,name)
@@ -220,15 +225,10 @@ def main(args=None):
                 store.save(db,name,{"sessionScope":category,"sessions":[item]},now,3600)
         elif a.cmd=="statusline":
             raw=json.load(sys.stdin.buffer).get("rate_limits",{})
-            parts=[]
-            for k,label in (("five_hour","5h"),("seven_day","7d")):
-                window=raw.get(k) or {}
-                if "used_percentage" in window:
-                    parts.append(f'{label} {100-float(window["used_percentage"]):g}%')
-            if parts:
-                value=" / ".join(parts)
-                store.save(db,"claude.limits",{"fields":{"1.left":value}},now,600)
-                print(value)
+            if raw:
+                data=claude_statusline(raw)
+                store.save(db,"claude.limits",data,now,600)
+                if "1.left" in data["fields"]: print(data["fields"]["1.left"])
     finally:
         db.close()
 

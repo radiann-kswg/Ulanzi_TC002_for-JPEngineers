@@ -42,6 +42,26 @@ int main() {
     assert(timer.icon==Icon::Hourglass);
     Glyph digit{'?',6,5,{31},0};
     Font numbers{&digit,1};
+    Clock menus;
+    for (Level level:{Level::Category,Level::Menu}) {
+        menus.nav.level=level;
+        for (int c=0;c<4;++c) for (int p=0;p<8;++p) {
+            menus.nav.category=c; menus.nav.page[c]=p;
+            auto menu=screen(menus,0,utc);
+            auto pixels=paint(menu,numbers,numbers,numbers,0);
+            int count=level==Level::Category?4:8, width=40/count;
+            int selected=level==Level::Category?c:p;
+            for (int x=0;x<40;++x) {
+                int red=x%width==width-1?0:x/width==selected?(c==3?blue:serviceInk(c))>>16:0x24;
+                assert(pixels.pixels[(15*52+12+x)*3]==red);
+            }
+            if (c==3) {
+                Frame previous;
+                line(previous,menu.main,numbers,numbers,2,blue);
+                assert(std::equal(pixels.pixels.begin(),pixels.pixels.begin()+15*52*3,previous.pixels.begin()));
+            }
+        }
+    }
     auto face=paint(timer,numbers,numbers,numbers,0);
     assert(face.pixels[(2*52+1)*3] && face.pixels[(2*52+51)*3]);
     assert(face.pixels[(2*52+9)*3]==0);
@@ -58,11 +78,26 @@ int main() {
     assert(screen(counters,600200,utc).paused);
 
     Clock pop;
-    pop.feed.events={{100000,"schedule-1-test-100000","PR 今日の作業"},{100001,"ci","復旧 main"}};
+    std::string title="長い通知のスクロールを末尾のタイトルまで確認する";
+    pop.feed.events={{100000,"schedule-1-test-100000",title},{100001,"ci","復旧 main"}};
     pop.advance(0,100000);
     assert(screen(pop,0,100000).service==1 && screen(pop,0,100000).servicePage==0);
+    auto popupFrame=paint(screen(pop,0,100000),numbers,numbers,numbers,0);
+    TextRun popupText("予定 "+title,numbers,numbers);
+    assert(popupFrame.advanceAfter==popupText.readTime(developerWidth) && popupFrame.advanceAfter>3500);
     pop.advance(3500,100003);
+    assert(screen(pop,3500,100003).service==1);
+    pop.advance(90000,100090); // A delayed UI tick does not skip any unread pixels.
+    auto tail=paint(screen(pop,90000,100090),numbers,numbers,numbers,popupFrame.advanceAfter-1);
+    Frame expectedTail;
+    popupText.draw(expectedTail,2,ivory,popupFrame.advanceAfter-1,developerLeft);
+    for (int y=0;y<16;++y) for (int x=developerLeft;x<52;++x) {
+        auto pos=(y*52+x)*3;
+        assert(std::equal(tail.pixels.begin()+pos,tail.pixels.begin()+pos+3,expectedTail.pixels.begin()+pos));
+    }
+    pop.nextPopup();
     assert(screen(pop,3500,100003).servicePage==2 && screen(pop,3500,100003).service==0);
+    pop.nextPopup();
     assert(screen(pop,7000,100007).weekday>=0);
     pop.command(Action::Louder,8000);
     assert(screen(pop,8000,100008).service==-1);

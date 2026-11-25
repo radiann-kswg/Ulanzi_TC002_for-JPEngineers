@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from .store import clean, key
+from .usage import budget_used, percentage, reset_epoch
 
 def gh(*args):
     run=subprocess.run(["gh","api",*args],capture_output=True,timeout=40)
@@ -187,7 +188,8 @@ def notifications(repos,old,now):
 def billing(now):
     login=gh("user")["login"]
     t=datetime.fromtimestamp(now,timezone.utc)
-    data=gh(f"users/{login}/settings/billing/ai_credit/usage?year={t.year}&month={t.month}")
+    data=gh(f"users/{login}/settings/billing/ai_credit/usage?year={t.year}&month={t.month}",
+            "-H","X-GitHub-Api-Version: 2026-03-10")
     amounts=[Decimal(str(row["netAmount"])) for row in data["usageItems"]]
     total=sum(amounts,Decimal(0))
     return {"fields":{"0.extra":f"{total:.2f} USD"},"period":t.strftime("%Y-%m")}
@@ -201,9 +203,46 @@ async def _quota():
         result=await client.rpc.account.get_quota(AccountGetQuotaRequest(),timeout=10)
         premium=result.quota_snapshots["premium_interactions"]
         if premium.entitlement_requests==-1: return {"fields":{"0.left":"無制限"}}
-        return {"fields":{"0.left":f"{premium.remaining_percentage:g}%"}}
+        data={"fields":{"0.left":f"{premium.remaining_percentage:g}%"},"resets":{"":None}}
+        if premium.reset_date:
+            try:
+                date=datetime.fromisoformat(premium.reset_date)
+                date=date if date.tzinfo else date.replace(tzinfo=timezone.utc)
+                if date>datetime.now(timezone.utc):
+                    data["resets"]={"":int(date.timestamp())}
+            except (ValueError, OverflowError, OSError):
+                pass
+        return data
     finally:
         await client.stop()
 
 def quota():
-    return asyncio.run(asyncio.wait_for(_quota(),25))
+    try:
+        return copilot_quota(gh("copilot_internal/user"))
+    except (RuntimeError, OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError):
+        return asyncio.run(asyncio.wait_for(_quota(),25))
+
+def copilot_quota(account):
+    premium=account["quota_snapshots"]["premium_interactions"]
+    remaining=premium.get("percent_remaining")
+    if premium.get("unlimited") is True:
+        left="無制限"
+    elif percentage(remaining):
+        left=f"{remaining:g}%"
+    else:
+        raise ValueError("missing premium quota")
+    fields={"0.left":left}
+    at=premium.get("quota_reset_at")
+    if not reset_epoch(at):
+        value=account.get("quota_reset_date_utc") or account.get("quota_reset_date")
+        at=None
+        if value:
+            date=datetime.fromisoformat(value)
+            at=int((date if date.tzinfo else date.replace(tzinfo=timezone.utc)).timestamp())
+    data={"fields":fields,"resets":{"":at}}
+    if premium.get("token_based_billing",account.get("token_based_billing")) is True:
+        amount=budget_used(premium.get("overage_count"),None,"cr")
+        if amount is not None:
+            fields["0.creditUsed"]=amount
+            if reset_epoch(at): data["budgetReset"]=at
+    return data

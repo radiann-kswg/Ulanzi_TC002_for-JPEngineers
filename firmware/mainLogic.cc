@@ -170,7 +170,7 @@ void update() {
     static Millis animationTime=0,entered=-1,redrawAt=0;
     static int nextStep=0,advanceAfter=0;
     bool same=!previous.empty() && entered==app.entered && view.main==last.main && view.sub==last.sub &&
-        view.service==last.service && view.servicePage==last.servicePage && view.menu==last.menu &&
+        view.service==last.service && view.servicePage==last.servicePage && view.menu==last.menu && view.popup==last.popup &&
         view.stampLine==last.stampLine && view.gauge==last.gauge && view.weekday==last.weekday &&
         view.color==last.color && view.compact==last.compact && view.icon==last.icon &&
         view.ready==last.ready && view.paused==last.paused && view.weatherKind==last.weatherKind &&
@@ -179,7 +179,10 @@ void update() {
     // Present every movement step even if a hardware call delayed this UI tick.
     animationTime=same?animationTime+nextStep:0;
     if (same && advanceAfter && animationTime>=advanceAfter) {
-        if (app.autoBrowse(now)) view=screen(app,now,utc);
+        if (view.popup) {
+            app.nextPopup();
+            view=screen(app,now,utc);
+        } else if (app.autoBrowse(now)) view=screen(app,now,utc);
         animationTime=0;
     }
     Frame frame=paint(view,denki,nega,maru,animationTime);

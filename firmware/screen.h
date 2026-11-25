@@ -4,6 +4,34 @@
 #include "developer.h"
 
 namespace tc {
+inline std::string quotaWindow(const std::string& window,time_t utc) {
+    const std::string marker=" リセット ";
+    size_t pos=window.find(marker);
+    if (pos==std::string::npos) return window;
+    auto value=window.substr(0,pos);
+    size_t space=value.find_last_of(' ');
+    if (space!=std::string::npos) value.erase(0,space+1);
+    std::tm reset{};
+    const char* end=strptime(window.c_str()+pos+marker.size(),"%Y-%m-%dT%H:%M:%SZ",&reset);
+    if (!end || *end) return "-- "+value;
+    time_t deadline=timegm(&reset);
+    if (deadline<0) return "-- "+value;
+    int64_t seconds=int64_t(deadline)-utc;
+    if (seconds<=0) return "0m --%";
+    if (seconds>=86400) return std::to_string(seconds/86400)+"d "+value;
+    if (seconds>=3600) return std::to_string(seconds/3600)+"h "+value;
+    if (seconds<60) return "<1m "+value;
+    return std::to_string(seconds/60)+"m "+value;
+}
+inline std::string quotaCountdown(const std::string& text,time_t utc) {
+    const std::string prefix="残 ";
+    if (text.compare(0,prefix.size(),prefix)!=0 || text.find(" リセット ")==std::string::npos) return text;
+    auto windows=text.substr(prefix.size());
+    size_t split=windows.find(" / ");
+    auto result=prefix+quotaWindow(windows.substr(0,split),utc);
+    if (split!=std::string::npos) result+=" / "+quotaWindow(windows.substr(split+3),utc);
+    return result;
+}
 inline Layout screen(const Clock& clock, Millis now, time_t utc) {
     Layout v;
     const auto& nav=clock.nav;
@@ -13,17 +41,17 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
         // Alternate the alarm with the current view so navigation remains usable.
         if ((now/1500)%2==0) { v.main="時間です"; v.color=amber; return v; }
     }
-    if (clock.noticeUntil>now) {
+    if (clock.popupActive || clock.noticeUntil>now) {
         v.main=clock.notice; v.color=amber;
+        v.popup=clock.popupActive;
         v.service=clock.noticeService; v.servicePage=clock.noticePage;
         return v;
     }
     if (!nav.busy && nav.level!=Level::Screen) {
         v.main=nav.level==Level::Category?categoryName(c):pageName(c,p);
-        if (c<3) {
-            v.service=c; v.servicePage=nav.level==Level::Category?-1:p; v.menu=true;
-        }
-        v.gauge=nav.level==Level::Category?(c+1)*13:(p+1)*52/8;
+        v.menu=true;
+        v.servicePage=nav.level==Level::Category?-1:p;
+        if (c<3) v.service=c;
         v.color=blue; return v;
     }
     if (nav.busy || (c==3 && p==4)) {
@@ -90,7 +118,10 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
     bool isSchedule=(c==1 || c==2) && p<2;
     if (isSchedule) scheduled=clock.scheduleRows(c,p,utc);
     const auto& rows=isSchedule?scheduled:clock.feed.pages[c][p];
-    if (rows.empty()) { v.main="未取得"; return v; }
+    if (rows.empty()) {
+        v.main=c<3 && p==6?(clock.selection%2?"追加 取得不可":"残 取得不可"):"未取得";
+        return v;
+    }
     const Row& row=rows[clock.selection%rows.size()];
     if (c==3 && p==3) {
         size_t index=clock.selection%rows.size();
@@ -99,9 +130,11 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
     }
     const bool disconnected=utc-clock.feed.generated>90 || clock.feed.generated>utc+90;
     const bool stale=row.stale || disconnected;
-    v.main=row.text;
+    v.main=c<3 && p==6?quotaCountdown(row.text,utc):row.text;
     if (stale) {
-        if (!row.stamp) v.main="未取得";
+        if (!row.stamp) {
+            if (c>=3 || p!=6) v.main="未取得";
+        }
         else {
             auto t=localFields(row.stamp);
             char date[32]; snprintf(date,sizeof date,"%02d/%02d",t.tm_mon+1,t.tm_mday);
@@ -117,6 +150,19 @@ inline Frame paint(const Layout& view,const Font& denki,const Font& nega,const F
     Frame frame;
     if (view.service>=0) {
         developerPanel(frame,view,denki,nega,maru,elapsed);
+        return frame;
+    }
+    if (view.popup) {
+        TextRun value(view.main,denki,maru);
+        int end=value.readTime(52);
+        frame.advanceAfter=std::max(3500,end);
+        value.draw(frame,2,view.color,std::min<Millis>(elapsed,end-1));
+        if (elapsed>=end-1) frame.refreshAfter=std::numeric_limits<int>::max();
+        return frame;
+    }
+    if (view.menu) {
+        line(frame,view.main,denki,maru,2,view.color,elapsed);
+        menuBar(frame,view.servicePage<0?3:view.servicePage,view.servicePage<0?4:8,view.color);
         return frame;
     }
     if (view.calendarPanel>=0) {

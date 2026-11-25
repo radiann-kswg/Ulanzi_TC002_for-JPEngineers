@@ -32,6 +32,13 @@ inline uint32_t serviceInk(int service) {
     static const uint32_t colors[]={0xC6A9FA,0xF0A581,0x77DCCA};
     return colors[service];
 }
+inline void menuBar(Frame& frame,int choice,int count,uint32_t ink) {
+    for (int i=0;i<count;++i) {
+        int start=developerLeft+i*developerWidth/count;
+        for (int x=start;x<developerLeft+(i+1)*developerWidth/count-1;++x)
+            frame.pixel(x,15,i==choice?ink:0x243138);
+    }
+}
 inline void signature(Frame& f,int service) {
     // A fork, a star, and a prompt remain identifiable below the status icon.
     static const uint16_t marks[][12]={{34,34,30,2},{20,127,28,34},{2,4,2,120}};
@@ -87,8 +94,11 @@ struct DevReading {
                 upper=text.substr(0,split); lower=text.substr(split+3);
             } else if (mark==Symbol::Quota && text.size()>1 && text.back()=='%') {
                 char* end=nullptr;
-                double pct=std::strtod(text.c_str(),&end);
-                if (end==text.c_str()+text.size()-1 && pct>=0 && pct<=100)
+                const char* start=text.c_str();
+                if (v.service==0 && text.find(' ')!=std::string::npos)
+                    start+=text.find_last_of(' ')+1;
+                double pct=std::strtod(start,&end);
+                if (end!=start && end==text.c_str()+text.size()-1 && pct>=0 && pct<=100)
                     remainingBar=int(pct*developerWidth/100+0.5);
             }
         } else if (v.service==0) {
@@ -148,13 +158,7 @@ inline void developerPanel(Frame& frame,const Layout& v,const Font& denki,const 
     TextRun value(row.text,denki,maru);
     if (v.menu) {
         value.draw(frame,1,ivory,elapsed,left);
-        int count=v.servicePage<0?4:8;
-        int choice=v.servicePage<0?v.service:v.servicePage;
-        for (int i=0;i<count;++i) {
-            int start=left+i*area/count;
-            for (int x=start;x<left+(i+1)*area/count-1;++x)
-                frame.pixel(x,15,i==choice?row.ink:0x243138);
-        }
+        menuBar(frame,v.servicePage<0?v.service:v.servicePage,v.servicePage<0?4:8,row.ink);
         return;
     }
     bool small=false;
@@ -169,9 +173,10 @@ inline void developerPanel(Frame& frame,const Layout& v,const Font& denki,const 
               std::max(upper.width,lower.width)<=52-pairLeft;
     int intro=row.date.empty()?0:2400;
     bool dated=!v.stampLine.empty();
-    bool cycle=intro || dated;
+    bool cycle=intro || dated || v.popup;
     int read=pair?3600:std::max(3600,value.readTime(area));
     int period=intro+read+(dated?3000:0);
+    if (v.popup) frame.advanceAfter=period;
     int64_t phase=cycle?elapsed%period:elapsed;
     if (phase<intro) {
         TextRun(row.date,nega,denki).draw(frame,0,row.ink,0,left,true);

@@ -63,6 +63,7 @@ struct Frame {
 };
 
 struct TextRun {
+    static constexpr int scrollStepMs=50;
     struct Letter { const Glyph* shape; const uint16_t* inside; };
     std::vector<Letter> glyphs;
     int width=0;
@@ -82,9 +83,9 @@ struct TextRun {
     }
     int readTime(int area) const {
         int gap=std::max(0,width-area);
-        return gap?1000+(gap-1)*90+1200:3000;
+        return gap?1000+(gap-1)*scrollStepMs+1200:3000;
     }
-    int cycleTime(int area) const { return readTime(area)+(area+5)*90; }
+    int cycleTime(int area) const { return readTime(area)+(area+5)*scrollStepMs; }
     void draw(Frame& frame,int y,uint32_t color,int64_t elapsed,int left=0,bool right=false) const {
         int available=52-left, gap=width-available;
         int origin=right && gap<0?left-gap:left;
@@ -94,13 +95,13 @@ struct TextRun {
             int phase=int(std::max<int64_t>(0,elapsed)%cycle);
             if (phase<1000) frame.wake(1000-phase);
             else if (phase<read) {
-                int distance=std::min(gap,1+(phase-1000)/90);
+                int distance=std::min(gap,1+(phase-1000)/scrollStepMs);
                 origin-=distance;
-                frame.wake(distance==gap?read-phase:90-(phase-1000)%90);
+                frame.wake(distance==gap?read-phase:scrollStepMs-(phase-1000)%scrollStepMs);
             } else {
-                origin-=gap+1+(phase-read)/90;
+                origin-=gap+1+(phase-read)/scrollStepMs;
                 copies=2;
-                frame.wake(90-(phase-read)%90);
+                frame.wake(scrollStepMs-(phase-read)%scrollStepMs);
             }
         }
         uint32_t outline=(color>>2)&0x3f3f3f;

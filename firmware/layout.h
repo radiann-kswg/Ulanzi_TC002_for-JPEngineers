@@ -13,6 +13,6 @@ struct Layout {
     bool paused=false, ready=false, automatic=false;
     int calendarPanel=-1, moonTenths=0;
     int service=-1, servicePage=-1;
-    bool menu=false;
+    bool menu=false, popup=false;
 };
 }

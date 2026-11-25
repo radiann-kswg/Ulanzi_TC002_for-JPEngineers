@@ -9,8 +9,9 @@ int main() {
     address.draw(f,0,0x123456,0);
     assert(f.pixels[0]==0x12 && f.refreshAfter==1000);
     tc::Frame moving,tail,again;
-    address.draw(moving,0,0x123456,1090);
-    assert(moving.pixels!=f.pixels);
+    address.draw(moving,0,0x123456,1000);
+    assert(moving.pixels!=f.pixels && moving.refreshAfter==50);
+    assert(address.readTime(52)==1000+9*50+1200);
     address.draw(tail,0,0x123456,address.readTime(52)-1);
     assert(tail.pixels[51*3]==0x12 && tail.refreshAfter==1);
     tc::Frame wrap;

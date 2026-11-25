@@ -31,11 +31,11 @@ PR通知とPR一覧は同じ小カテゴリ内で扱う。Issue通知とIssue一
 
 - **Q14　一覧と残件**　PCで指定したリポジトリの未完了PR（open。ドラフトを含む）とオープンIssueを、それぞれの一覧・件数で同じ条件で集計する。例えばドラフト1件・通常の未完了PR1件・オープンIssue3件なら、PR残件は2、Issue残件は3。マージ済み・クローズ済みPRはPR残件から、PRはIssue残件から除外する。コードレビューは「自分への依頼」と「自分のPRの審査状況」を区別する。
 - **Q15　Claude Desktop**　CodeとCoworkの両方を、予定の通知・一覧と、セッションの状態・一覧・件数・直近の完了の対象にする。取得時には同じ予定やセッションを重複計上しないことを確認する。
-- **Q16・Q18　トークン残量**　GitHub・Claude・Codexの各画面で、契約枠の残り使用量（％）と、今期に実際に使った追加クレジットの金額を請求通貨で表示する。例えば10ドル購入して今期に2ドル使用した場合、金額欄は「2 USD」。残率と金額は個別に扱い、確認できた0と取得不可を区別する。
+- **Q16・Q18　利用残量**　GitHub・Claude・Codexの各画面で、契約枠の残率と、取得元のリセット時刻までの残日数・残時間を表示する。追加欄は今期の消費量を請求通貨またはクレジット単位で示し、予算上限も分かる場合は「消費量 / 上限」とする。予算の消費率だけが分かる場合はその割合を表示し、概算額には「約」を付ける。残率と追加消費は個別に扱い、確認できた0と「取得不可」を区別する。
 - **Q17　スケジュール**　両AIサービスとも、アプリに登録済みの有効な予定を次の実行予定時刻が近い順に並べ、その時刻の到来を通知する。予定時刻に達した後も、実行開始を確認できた場合にだけ「開始」と表示する。例えば10時の予定でPCがスリープしていれば、10時になっただけでは開始扱いにしない。
 - **Q21　Actions通知**　指定リポジトリのワークフロー実行が失敗した時、およびその後に同じワークフロー・同じブランチで初めて成功した時に通知する。例えば成功・失敗・成功・成功の順なら通知は2回。別ブランチの成功は元ブランチの復旧扱いにしない。通常の成功も実行一覧に表示する。
 - **Q22　直近の完了セッション**　ひとつの依頼への応答が正常終了した時点で、そのセッションを掲載する。回答・承認が必要と判別できる間は入力待ちに残す。失敗・中断は完了件数に含めない。
-- **Q23　他画面での開発通知**　通常は数秒間だけ通知を表示して、自動で元画面へ戻る。BUSY中は開発通知を一覧に記録し、表示中の画面を保つ。通常タイマーの期限はBUSY中も知らせる。
+- **Q23　他画面での開発通知**　短い通知は数秒間表示する。長い通知は末尾までスクロールして読み取り時間を確保し、次の通知または元画面へ移る。BUSY中は開発通知を一覧に記録し、表示中の画面を保つ。通常タイマーの期限はBUSY中も知らせる。
 - **Q26　通信断**　PCとの接続が切れたら、件数・利用額・天気には最終取得値と取得時刻を表示する。初めて起動して値がなければ「未取得」とする。セッションは切断前の状態であることを示し、切断から実行継続や完了を推定しない。本体の時計・各タイマー・保存地点の日出入りは継続する。
 
 ### ノブと3ボタンの割り当て
@@ -111,7 +111,7 @@ BUSYタイマーは4大カテゴリのどの画面からも共通ショートカ
 | --- | --- | --- |
 | GitHub Copilot app・GitHub | PR・Issueは検索、購読通知は通知API、Actionsはリポジトリのワークフロー実行から取得できる。Copilot SDKの `account.getQuota` は、提供された利用枠の残率・リセット日を返す。 | 指定リポジトリの一覧と残件を同じ条件で照合する。自分の通知とリポジトリ全体の実行を区別し、利用中の契約で取得できる枠と単位を確認する。[Copilot app](https://docs.github.com/en/copilot/get-started/where-to-use-github-copilot)・[検索](https://docs.github.com/en/rest/search/search#search-issues-and-pull-requests)・[通知](https://docs.github.com/en/rest/activity/notifications)・[Actions](https://docs.github.com/en/rest/actions/workflow-runs)・[利用枠](https://docs.github.com/en/copilot/how-tos/copilot-sdk/features/usage-and-billing) |
 | GPT Codexデスクトップアプリ | アプリ内で予定と実行履歴を確認できる。App Serverには購読したスレッドの状態やターン終了を受ける機能、ChatGPTでサインインしたアカウントのCodex利用枠を扱う機能がある。 | 既存デスクトップで開いたセッションの入力待ちと終了を識別できるか、次の予定一覧をPC側で自動取得できるかを検証する。契約の利用率と個々の会話のトークン使用量は別の値として扱う。[予定](https://developers.openai.com/codex/app/automations/)・[App Server](https://developers.openai.com/codex/app-server/) |
-| Claude Desktop | Codeでセッションのコンテキスト使用率とプラン使用量を確認できる。CodeとCoworkには予定機能がある。ChatとCoworkの統合は段階展開中。 | CodeとCoworkそれぞれで、既存の予定・入力待ち・終了をWindows側から取得できる範囲と、契約枠の取得経路を検証する。デスクトップに表示された値を時計へ自動連携する部分は未検証。[Codeの使用量](https://code.claude.com/docs/en/desktop#check-usage)・[Codeの予定](https://code.claude.com/docs/en/desktop-scheduled-tasks)・[Coworkの予定](https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork)・[ChatとCoworkの統合](https://support.claude.com/en/articles/16761823-claude-cowork-and-chat-are-one-claude) |
+| Claude Desktop | Codeでセッションのコンテキスト使用率とプラン使用量を確認できる。CodeとCoworkには予定機能がある。ChatとCoworkの統合は段階展開中。 | CodeとCoworkそれぞれで、既存の予定・入力待ち・終了をWindows側から取得できる範囲を検証する。契約枠は利用状況照会とDesktopの履歴から取得する。[取得範囲と設定](operation.md#セッション予定契約枠)・[Codeの使用量](https://code.claude.com/docs/en/desktop#check-usage)・[Codeの予定](https://code.claude.com/docs/en/desktop-scheduled-tasks)・[Coworkの予定](https://support.claude.com/en/articles/13854387-schedule-recurring-tasks-in-claude-cowork)・[ChatとCoworkの統合](https://support.claude.com/en/articles/16761823-claude-cowork-and-chat-are-one-claude) |
 
 超過時の金額はサービスの契約・請求単位で照合する。個人が直接契約するGitHub Copilotには月別の請求利用レポートがある。Claudeの設定画面では当月の追加消費を確認でき、Codexでは契約枠に続いて利用するクレジットの残高・利用履歴を確認できる。購入額・残高・当期消費額は別の値であり、取得元が通貨額を提供しない場合の取り扱いを各サービスで検証する。[GitHubの請求利用API](https://docs.github.com/en/rest/billing/usage#get-billing-ai-credit-usage-report-for-a-user)・[Claudeの追加クレジット](https://support.claude.com/en/articles/12429409-manage-usage-credits-for-paid-claude-plans)・[Codexの個人向けクレジット](https://help.openai.com/en/articles/12642688-using-credits-for-flexible-usage-in-chatgpt-personal-plans)
 

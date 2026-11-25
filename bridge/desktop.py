@@ -1,10 +1,14 @@
 """Read status and account limits from documented desktop interfaces."""
 import asyncio
+import http.client
 import json
 import os
 import subprocess
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from .store import clean, key
+from .usage import budget_used, percentage, reset_epoch
 
 def title(item):
     return clean(item.get("name") or Path(item.get("cwd") or "").name or "セッション",36)
@@ -57,16 +61,76 @@ class CodexRPC:
 async def codex_limits():
     async with CodexRPC(False) as rpc:
         data=await rpc.call("account/rateLimits/read",{})
-    limits=data["rateLimits"]
+    limits=(data.get("rateLimitsByLimitId") or {}).get("codex") or data["rateLimits"]
+    fields, resets={}, {}
     parts=[]
     for kind in ("primary","secondary"):
         window=limits.get(kind)
-        if window and window.get("usedPercent") is not None:
+        if window and percentage(window.get("usedPercent")):
             minutes=window.get("windowDurationMins")
             period={300:"5h",10080:"7d"}.get(minutes,f"{minutes}m" if minutes else kind)
             parts.append(f'{period} {100-window["usedPercent"]:g}%')
-    if not parts: raise ValueError("no subscription window")
-    return {"fields":{"2.left":" / ".join(parts)}}
+            if reset_epoch(window.get("resetsAt")):
+                resets[period]=window["resetsAt"]
+    if parts:
+        fields["2.left"]=" / ".join(parts)
+    result={"fields":fields}
+    if resets: result["resets"]=resets
+    budget=limits.get("individualLimit") or {}
+    amount=budget_used(budget.get("used"),budget.get("limit"),"cr")
+    if amount is not None:
+        fields["2.budget"]=amount
+        if reset_epoch(budget.get("resetsAt")):
+            result["budgetReset"]=budget["resetsAt"]
+    return result
+
+def personal_credit_usage(report, now):
+    today=datetime.fromtimestamp(now,timezone.utc).date()
+    start=today.replace(day=1)
+    end=(start+timedelta(days=32)).replace(day=1)
+    rows=report["data"]
+    if not isinstance(rows,list) or report.get("has_more") or report.get("next_cursor"):
+        raise ValueError("incomplete credit history")
+    total=Decimal(0)
+    for row in rows:
+        day=date.fromisoformat(row["date"][:10])
+        if not start<=day<=today: continue
+        if "credit_amount" in row:
+            amounts=[row["credit_amount"]]
+        elif isinstance(row.get("premium_usage_values"),dict) and isinstance(row["premium_usage_values"].get("credit_usage_credits"),dict):
+            amounts=row["premium_usage_values"]["credit_usage_credits"].values()
+        elif isinstance(row.get("models"),list):
+            amounts=[m["on_demand_credits"] for m in row["models"]]
+        else:
+            raise ValueError("unknown credit history row")
+        for value in amounts:
+            try: amount=Decimal(str(value))
+            except InvalidOperation: raise ValueError("invalid credit amount") from None
+            if not amount.is_finite() or amount<0: raise ValueError("invalid credit amount")
+            total+=amount
+    bounds=[int(datetime(d.year,d.month,1,tzinfo=timezone.utc).timestamp()) for d in (start,end)]
+    return {"fields":{"2.creditUsed":f"{total:f} cr"},"periodBounds":bounds}
+
+async def codex_credits(now):
+    async with CodexRPC(False) as rpc:
+        account=(await rpc.call("account/read",{"refreshToken":False})).get("account") or {}
+    if account.get("type")!="chatgpt" or account.get("planType") not in ("free","go","plus","pro","prolite","promax"):
+        return {"fields":{}}
+    path=Path(os.environ.get("CODEX_HOME",Path.home()/".codex"))/"auth.json"
+    tokens=json.loads(path.read_bytes())["tokens"]
+    # Send only to the first-party usage endpoint. HTTPSConnection does not follow redirects.
+    conn=http.client.HTTPSConnection("chatgpt.com",timeout=15)
+    try:
+        conn.request("GET","/backend-api/wham/usage/credit-usage-events",headers={
+            "Authorization":"Bearer "+tokens["access_token"],"ChatGPT-Account-Id":tokens["account_id"],
+            "Accept":"application/json","x-openai-codex-usage-categories":"1","User-Agent":"TC002-clock"})
+        response=conn.getresponse()
+        if response.status!=200: raise RuntimeError(f"Codex credit history HTTP {response.status}")
+        raw=response.read(4*1024*1024+1)
+        if len(raw)>4*1024*1024: raise ValueError("credit history too large")
+        return personal_credit_usage(json.loads(raw,parse_float=Decimal),now)
+    finally:
+        conn.close()
 
 async def codex_sessions(now):
     # Only a shared server can attest to the state of threads in the running desktop.

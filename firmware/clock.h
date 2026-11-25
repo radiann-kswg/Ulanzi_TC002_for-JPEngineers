@@ -32,6 +32,7 @@ struct Clock {
     Millis autoAt=-1;
     std::string notice;
     int noticeService=-1,noticePage=-1;
+    bool popupActive=false;
     std::set<std::string> handled;
     std::deque<std::string> order;
     struct Popup { std::string text; int service,page; };
@@ -62,6 +63,7 @@ struct Clock {
     Sound command(Action a,Millis now) {
         if (a==Action::None) return Sound::None;
         noticeUntil=0;
+        popupActive=false;
         noticeService=noticePage=-1;
         if (a==Action::Louder || a==Action::Quieter) {
             volume=clamp(volume+(a==Action::Louder?1:-1),0,6);
@@ -101,6 +103,7 @@ struct Clock {
     size_t itemCount() const {
         int c=nav.category,p=nav.page[c];
         if (p==7) return 2;
+        if (c<3 && p==6 && feed.pages[c][p].empty()) return 2;
         if (c==3 && p==2) return 3;
         if (c==1 || c==2) {
             if (p==0 || p==1) return std::max<size_t>(1,scheduleRows(c,p,checkedAt).size());
@@ -184,12 +187,17 @@ struct Clock {
         }
         checkedAt=utc;
         if (nav.busy) pending.clear();
-        if (!pending.empty() && now>=noticeUntil && !alarmActive) {
+        if (!popupActive && now>=noticeUntil) nextPopup();
+        return cue;
+    }
+
+    void nextPopup() {
+        popupActive=!pending.empty() && !nav.busy && !alarmActive;
+        if (popupActive) {
             const auto& popup=pending.front();
             notice=popup.text; noticeService=popup.service; noticePage=popup.page;
-            pending.pop_front(); noticeUntil=now+3500;
+            pending.pop_front();
         }
-        return cue;
     }
 };
 }

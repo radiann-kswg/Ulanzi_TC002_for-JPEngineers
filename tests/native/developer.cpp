@@ -33,6 +33,27 @@ int main() {
     assert(DevReading(sample(clock,0,6,"残 72.5%")).remainingBar==29);
     assert(DevReading(sample(clock,0,6,"残 取得不可")).remainingBar==-1);
     assert(DevReading(sample(clock,0,6,"追加 取得不可")).mark==Symbol::Cost);
+    const std::string limits="残 5h 75% リセット 1970-01-02T04:46:40Z / 7d 0% リセット 1970-01-04T03:46:40Z";
+    auto reset=DevReading(sample(clock,2,6,limits));
+    assert(reset.upper=="1h 75%" && reset.lower=="2d 0%");
+    assert(quotaCountdown(limits,100001)=="残 59m 75% / 1d 0%");
+    assert(quotaCountdown(limits,103599)=="残 <1m 75% / 1d 0%");
+    assert(quotaCountdown(limits,103600)=="残 0m --% / 1d 0%");
+    auto missingTime=DevReading(sample(clock,1,6,"残 7d 42% リセット ?"));
+    assert(missingTime.text=="-- 42%");
+    auto githubLimit=DevReading(sample(clock,0,6,"残 72.5% リセット 1970-01-04T03:46:40Z"));
+    assert(githubLimit.text=="2d 72.5%" && githubLimit.remainingBar==29);
+    for (int c=0;c<3;++c) {
+        auto credit=DevReading(sample(clock,c,6,"追加 0 / 10 cr"));
+        assert(credit.text=="0 / 10 cr" && credit.mark==Symbol::Cost);
+        clock.feed.pages[c][6].clear();
+        assert(clock.itemCount()==2);
+        clock.command(Action::Next,0);
+        assert(DevReading(screen(clock,0,100000)).mark==Symbol::Cost);
+        clock.feed.pages[c][6]={{0,"残 取得不可",false},{0,"追加 取得不可",false}};
+        auto offline=DevReading(screen(clock,0,100091));
+        assert(offline.mark==Symbol::Cost && offline.text=="取得不可");
+    }
     assert(DevReading(sample(clock,1,2,"failure 私のタスク")).text=="failure 私のタスク");
 
     Glyph question{'?',5,4,{7,5,7},0};
