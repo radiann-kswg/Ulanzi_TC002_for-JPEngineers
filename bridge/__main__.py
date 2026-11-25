@@ -74,10 +74,12 @@ def jobs(conf,db):
             if scope is None: raise RuntimeError("repository inventory pending")
             return collect(scope,old,t)
         tasks.update({"github.list":(180,lambda old,t:github.ticket_activity(github.owned_tickets(owner),old,t)),
+            "github.tickets":(180,lambda old,t:owned(github.ticket_events,old,t)),
             "github.actions":(240,lambda old,t:owned(github.actions,old,t)),
             "github.alerts":(60,lambda old,t:owned(github.notifications,old,t))})
     elif repos:
         tasks.update({"github.list":(90,lambda old,t:github.ticket_activity(github.tickets(repos),old,t)),
+            "github.tickets":(45,lambda old,t:github.ticket_events(repos,old,t)),
             "github.actions":(45,lambda old,t:github.actions(repos,old,t)),
             "github.alerts":(45,lambda old,t:github.notifications(repos,old,t))})
     return tasks
@@ -90,7 +92,7 @@ def serve(db,conf,device,once,out,reload_config=lambda:False):
     old=store.previous(db,"selectors")
     with db:
         if old.get("repos")!=selectors["repos"]:
-            db.execute("DELETE FROM sources WHERE name IN ('github.list','github.actions','github.alerts')")
+            db.execute("DELETE FROM sources WHERE name IN ('github.list','github.tickets','github.actions','github.alerts')")
         if old.get("place")!=selectors["place"]:
             db.execute("DELETE FROM sources WHERE name IN ('weather','weather.air')")
     store.save(db,"selectors",selectors,int(time.time()),10**8)
@@ -107,7 +109,7 @@ def serve(db,conf,device,once,out,reload_config=lambda:False):
             now=int(time.time())
             if not once and reload_config(): return
             for name,(period,collect) in tasks.items():
-                if (conf.get("owner") and name in ("github.actions","github.alerts") and
+                if (conf.get("owner") and name in ("github.tickets","github.actions","github.alerts") and
                     "github.list" in futures and not store.previous(db,"github.list")): continue
                 if name not in futures and deadlines[name]<=now and (not once or deadlines[name]==0):
                     futures[name]=pool.submit(collect,store.previous(db,name),now)

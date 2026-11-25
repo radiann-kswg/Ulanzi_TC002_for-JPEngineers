@@ -41,9 +41,20 @@ class StoreTest(unittest.TestCase):
         self.assertIn("row\t2\t0",store.snapshot(self.db,weather.AKO,1060).decode())
 
     def test_notification_includes_title_after_long_repository(self):
-        label="PR 終了 "+"long-repository-"*4+"#21 完了した作業名"
-        store.save(self.db,"test.event",{"events":[[1000,"pr21",label]]},1000,90)
-        self.assertIn("event\t1000\tpr21\t"+label+"\n",store.snapshot(self.db,weather.AKO,1000).decode())
+        label="long-repository-"*4+"#21 完了した作業名"
+        store.save(self.db,"github.tickets",{"events":[[1000,"pr-close-21",label]]},1000,90)
+        store.save(self.db,"github.alerts",{"events":[[1000,"oldid","PR通知 更新"]]},1000,90)
+        wire=store.snapshot(self.db,weather.AKO,1000).decode()
+        self.assertIn("event\t1000\tpr-close-21\t"+label+"\n",wire)
+        self.assertNotIn("oldid",wire)
+
+    def test_slow_repository_poll_delivers_once_at_collection_time(self):
+        body={"events":[[1000,"pr-open-1","r#1"]]}
+        store.save(self.db,"github.tickets",body,1100,180)
+        observed=store.previous(self.db,"github.tickets")
+        self.assertIn(b"event\t1100\tpr-open-1",store.snapshot(self.db,weather.AKO,1105))
+        store.save(self.db,"github.tickets",observed,1150,180)
+        self.assertNotIn(b"pr-open-1",store.snapshot(self.db,weather.AKO,1161))
 
     def test_date_and_amount_separate(self):
         store.save(self.db,"manual.cost",{"fields":{"1.extra":"2 USD"}},1000,30)

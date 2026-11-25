@@ -34,6 +34,11 @@ def open_db(path=DEFAULT_DB):
 
 def save(db, name, body, stamp, ttl):
     with db:
+        if name in ("github.tickets","github.actions") and body.get("events"):
+            # Scanning many repositories can outlast the clock's 60-second delivery window.
+            prior={event[1] for event in previous(db,name).get("events",[])}
+            body={**body,"events":[[due if uid in prior else stamp,uid,label]
+                                  for due,uid,label in body["events"]]}
         db.execute("INSERT OR REPLACE INTO sources VALUES (?,?,?,0,?)",
                    (name, stamp, ttl, json.dumps(body, ensure_ascii=False, allow_nan=False)))
 
@@ -73,8 +78,6 @@ def snapshot(db, place, now):
         if source=="github.list" and not live_inbox:
             for c,p,label in data.get("repoAlerts",[]):
                 pages[c,p].append((stamp,stale,label))
-            for due,uid,label in data.get("repoEvents",[]):
-                if now-60<=due: notices[uid]=(due,uid,label)
         if "scheduleScope" in data:
             schedule_scope[data["scheduleScope"]] = (stamp,stale or manual)
         if "sessionScope" in data:
@@ -90,9 +93,10 @@ def snapshot(db, place, now):
             if (c,p)==(3,3):
                 kinds=data.get("weatherKinds",[])
                 weather_kinds.append(kinds[i] if i<len(kinds) else "cloud")
-        for due, uid, label in data.get("events", []):
-            if now-60 <= due:
-                notices[uid] = (due, uid, label)
+        if source in ("github.tickets","github.actions"):
+            for due,uid,label in data.get("events",[]):
+                if now-60<=due and uid.startswith(("pr-open-","issue-open-","pr-close-","action-fail-")):
+                    notices[uid]=(due,uid,label)
         for c, uid, due, label in data.get("schedules", []):
             observed=schedules[c].get((uid,due))
             if not observed or stamp>=observed[2]:
@@ -168,7 +172,7 @@ def snapshot(db, place, now):
             if len(title)>256: title=title[:255]+"…"
             labels.append((f"{'old' if old else 'row'}\t{c}\t{p}\t{stamp}\t".encode(),
                            title.encode(),suffix))
-    for due, uid, label in sorted(notices.values())[:128]:
+    for due, uid, label in sorted(notices.values(),key=lambda event:event[0])[:128]:
         lines.append(f"event\t{due}\t{clean(uid,72)}\t{clean(label,256)}")
     header=("\n".join(lines)+"\n").encode()
     budget=(262144-len(header)-4-sum(len(prefix)+len(suffix)+1 for prefix,_,suffix in labels))//max(1,len(labels))

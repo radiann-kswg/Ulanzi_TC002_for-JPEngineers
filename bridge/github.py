@@ -109,7 +109,6 @@ def ticket_activity(data,old,now):
     before=old.get("changes")
     current=data["changes"]
     history=old.get("repoAlerts",[])[:]
-    events=[event for event in old.get("repoEvents",[]) if event[0]>=now-60]
     if before is not None:
         for uid in sorted(before.keys()|current.keys()):
             if before.get(uid)==current.get(uid): continue
@@ -117,9 +116,35 @@ def ticket_activity(data,old,now):
             change="新規" if uid not in before else "終了" if uid not in current else "更新"
             text=("PR " if page==0 else "Issue ")+change+" "+label
             history.insert(0,[0,page,text])
-            events.append([now,key(uid,stamp,change),text])
-    data.update(repoAlerts=history[:30],repoEvents=events[-64:])
+    data.update(repoAlerts=history[:30])
     return data
+
+def ticket_events(repos,old,now):
+    # An open-list diff cannot distinguish reopening from creation, and misses short-lived PRs.
+    through=now-1
+    after=old.get("through",through)
+    events=[e for e in old.get("events",[]) if e[0]>=now-60]
+    if through<=after: return {"through":after,"events":events}
+    since=datetime.fromtimestamp(after,timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    def fetch(repo):
+        endpoint="repos/"+repository(repo)+"/issues?state=all&per_page=100&since="+since
+        found=[]
+        for batch in gh("--paginate","--slurp",endpoint):
+            for item in batch:
+                pr="pull_request" in item
+                label=f'{repo.split("/")[1]}#{item["number"]} '+clean(item["title"])
+                for field,kind in (("created_at","pr-open" if pr else "issue-open"),("closed_at","pr-close")):
+                    at=item.get(field)
+                    if not at or (field=="closed_at" and not pr): continue
+                    stamp=int(datetime.fromisoformat(at).timestamp())
+                    if after<stamp<=through:
+                        uid=kind+"-"+key(repo,item["number"],at)
+                        found.append((stamp,field=="closed_at",uid,label))
+        return found
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        found=sorted(item for batch in pool.map(fetch,repos) for item in batch)
+    events.extend([now,uid,label] for _,_,uid,label in found)
+    return {"through":through,"events":events[-128:]}
 
 def actions_result(runs,old,now):
     states=old.get("branches",{}).copy()
@@ -127,7 +152,7 @@ def actions_result(runs,old,now):
     seen=set(old.get("seen",[]))
     current=set()
     rows=[]
-    events=[e for e in old.get("events",[]) if e[0]>=now-60]
+    events=[e for e in old.get("events",[]) if e[0]>=now-60 and e[1].startswith("action-fail-")]
     history=old.get("history",[])[:]
     for repo,run in sorted(runs,key=lambda pair:(pair[1]["updated_at"],pair[1]["id"],pair[1]["run_attempt"])):
         result=run["conclusion"] or run["status"]
@@ -148,7 +173,7 @@ def actions_result(runs,old,now):
             states[group]={"point":point,"failed":is_failure}
         if old and (is_failure or recovered):
             text=("失敗 " if is_failure else "復旧 ")+label
-            events.append([now,uid,text])
+            if is_failure: events.append([now,"action-fail-"+uid,label])
             history.insert(0,text)
     return {"rows":[[0,2,item] for item in history[:20]]+(rows or [[0,2,"実行なし"]]),
             "events":events,"history":history[:20],"seen":sorted(current),"branches":states}
@@ -165,7 +190,6 @@ def notifications(repos,old,now):
     rows=old.get("rows",[])[:]
     seen=set(old.get("seen",[]))
     current=set()
-    events=[e for e in old.get("events",[]) if e[0]>=now-60]
     # Repository endpoint returns the current user's subscribed notifications for this repo.
     scope={repo.casefold() for repo in repos}
     pages=gh("--paginate","--slurp","notifications?per_page=100")
@@ -182,8 +206,7 @@ def notifications(repos,old,now):
             row=[0,0 if typ=="PullRequest" else 3,text]
             if row in rows: rows.remove(row)
             rows.insert(0,row)
-            if old: events.append([now,uid,text])
-    return {"rows":rows[:30],"events":events,"seen":sorted(current|set(old.get("seen",[])[-200:]))}
+    return {"rows":rows[:30],"seen":sorted(current|set(old.get("seen",[])[-200:]))}
 
 def billing(now):
     login=gh("user")["login"]
