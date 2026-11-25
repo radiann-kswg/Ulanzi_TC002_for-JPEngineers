@@ -69,7 +69,7 @@ void loadPreferences() {
     if (in>>zone>>dst>>volume>>minutes>>pf>>pr>>bf>>br>>has>>lat>>lon) {
         app.world.base=clamp(zone,-720,840); app.world.summer=dst;
         app.volume=clamp(volume,0,6); app.timer.minutes=clamp(minutes,1,1440);
-        app.pomo.focus=clamp(pf,1,60); app.pomo.rest=clamp(pr,1,60);
+        app.pomo.focus=pomoFocusMinutes(pf); app.pomo.rest=clamp(pr,1,60);
         app.busy.focus=clamp(bf,1,60); app.busy.rest=clamp(br,1,60);
         app.feed.hasLocation=has && std::abs(lat)<=90 && std::abs(lon)<=180;
         app.feed.latitude=lat; app.feed.longitude=lon;
@@ -112,7 +112,7 @@ void sound(Sound s) {
     if (s==Sound::None) return;
     static base::MediaPlayer player;
     if (s==Sound::Silence) { player.stop(); return; }
-    if (!app.volume) return;
+    if (!app.volume || (s==Sound::Tick && player.isPlaying())) return;
     const char* name=nullptr;
     const char* fallback=nullptr;
     switch(s) {
@@ -163,7 +163,7 @@ void update() {
     if (!batch.empty()) saveIfChanged();
     pollHardware(now);
     auto cue=app.advance(now,utc);
-    if (cue!=Sound::None) sound(cue);
+    if (cue!=Sound::None && !(cue==Sound::Tick && button!=Sound::None)) sound(cue);
     else if (!app.alarmActive && button!=Sound::Silence) sound(button);
     Layout view=screen(app,now,utc);
     static Layout last;

@@ -13,6 +13,9 @@ class Elapsed {
 public:
     bool running = false;
     Millis value(Millis now) const { return accrued + (running ? now-start : 0); }
+    bool crossedSecond(Millis previous, Millis now) const {
+        return running && value(now)/1000 > value(std::max(previous,start))/1000;
+    }
     void toggle(Millis now) {
         accrued = value(now);
         start = now;
@@ -63,6 +66,13 @@ struct Interval {
         if (a == Action::HoldCenter) elapsed.reset();
     }
 };
+
+constexpr int pomoMinFocus = 25, pomoMaxFocus = 45, pomoFocusStep = 5;
+inline int pomoFocusMinutes(int minutes) {
+    if (minutes < pomoMinFocus || minutes > pomoMaxFocus || (minutes-pomoMinFocus)%pomoFocusStep != 0)
+        return pomoMinFocus;
+    return minutes;
+}
 
 struct World {
     int base = 540;

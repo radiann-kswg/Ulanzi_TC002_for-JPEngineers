@@ -22,7 +22,7 @@ struct Clock {
     Navigation nav;
     World world;
     Timer timer;
-    Interval pomo{10,10}, busy{30,5};
+    Interval pomo{pomoMinFocus,10}, busy{30,5};
     Elapsed stopwatch;
     int volume=3, battery=-1;
     std::string ip;
@@ -39,7 +39,7 @@ struct Clock {
     std::deque<Popup> pending;
     std::array<std::deque<Row>,3> dueHistory;
     int64_t checkedAt=-1;
-    Millis lastAlarm=-10000, lastTick=-1;
+    Millis lastAlarm=-10000, lastAdvance=0;
     int64_t lastSecond=-1;
     bool wasRest[2]={false,false};
     bool alarmActive=false;
@@ -48,7 +48,7 @@ struct Clock {
         if (!cycle.elapsed.running && cycle.elapsed.value(now)==0) {
             if (a==Action::Minus) {
                 if (isBusy) cycle.focus=cycle.focus==30?45:cycle.focus==45?60:30;
-                else cycle.focus=cycle.focus==10?15:cycle.focus==15?25:10;
+                else cycle.focus=pomoFocusMinutes(cycle.focus+pomoFocusStep);
             }
             if (a==Action::Plus) cycle.rest=cycle.rest==5?10:cycle.rest==10?15:5;
             if (a==Action::Plus || a==Action::Minus) {
@@ -145,18 +145,29 @@ struct Clock {
         return buf;
     }
 
+    const Elapsed& tickCounter() const {
+        // Follow the visible counter first. Background counters share one audible beat.
+        if (nav.busy && busy.elapsed.running) return busy.elapsed;
+        if (!nav.busy && nav.level==Level::Screen && nav.category==3) {
+            if (nav.page[3]==4 && pomo.elapsed.running) return pomo.elapsed;
+            if (nav.page[3]==6 && stopwatch.running) return stopwatch;
+        }
+        if (timer.elapsed.running) return timer.elapsed;
+        if (busy.elapsed.running) return busy.elapsed;
+        if (stopwatch.running) return stopwatch;
+        return pomo.elapsed;
+    }
+
     Sound advance(Millis now,time_t utc) {
         Sound cue=Sound::None;
-        if (lastSecond>=0 && utc==lastSecond+1 && !nav.busy && nav.category==3 &&
-            nav.level==Level::Screen && nav.page[3]==1) {
-            std::tm t=localFields(utc);
-            cue=t.tm_sec?Sound::Tick:t.tm_min?Sound::Minute:t.tm_hour?Sound::Hour:Sound::Midnight;
-        }
+        if (!nav.busy && nav.category==3 && nav.level==Level::Screen && nav.page[3]==1) {
+            if (lastSecond>=0 && utc==lastSecond+1) {
+                std::tm t=localFields(utc);
+                cue=t.tm_sec?Sound::Tick:t.tm_min?Sound::Minute:t.tm_hour?Sound::Hour:Sound::Midnight;
+            }
+        } else if (tickCounter().crossedSecond(lastAdvance,now)) cue=Sound::Tick;
+        lastAdvance=now;
         lastSecond=utc;
-        Millis tick=timer.elapsed.value(now)/1000;
-        if (timer.elapsed.running && timer.left(now)>0 && tick>0 && tick!=lastTick &&
-            cue==Sound::None) cue=Sound::Tick;
-        lastTick=tick;
         Interval* cycles[]={&pomo,&busy};
         for (int i=0;i<2;++i) {
             bool rest=cycles[i]->resting(now);

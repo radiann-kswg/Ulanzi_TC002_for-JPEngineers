@@ -57,17 +57,17 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
     if (nav.busy || (c==3 && p==4)) {
         const Interval& t=nav.busy?clock.busy:clock.pomo;
         bool rest=t.resting(now);
-        if (!nav.busy) {
-            v.icon=rest?Icon::Cup:Icon::Tomato;
-            v.main=duration(t.remaining(now)+999);
-            v.ready=!t.elapsed.running && !t.elapsed.value(now);
-            v.paused=!t.elapsed.running && !v.ready;
-            v.color=rest?blue:amber;
-            return v;
+        v.main=duration(t.remaining(now)+999);
+        v.icon=rest?Icon::Cup:(nav.busy?Icon::Briefcase:Icon::Tomato);
+        v.color=rest?blue:amber;
+        if (!t.elapsed.running) {
+            bool ready=t.elapsed.value(now)==0;
+            if (nav.busy) v.icon=ready?Icon::Play:Icon::Pause;
+            else {
+                v.ready=ready;
+                v.paused=!ready;
+            }
         }
-        v.compact=true; v.main=t.elapsed.running?(rest?"REST":"BUSY"):
-            t.elapsed.value(now)?"PAUSE":"BUSY READY";
-        v.sub=duration(t.remaining(now)+999); v.color=rest?blue:amber;
         return v;
     }
     if (c<3) { v.service=c; v.servicePage=p; }
@@ -174,14 +174,18 @@ inline Frame paint(const Layout& view,const Font& denki,const Font& nega,const F
         } else line(frame,view.main,denki,maru,2,ivory);
         frame.advanceAfter=4500;
     } else if (view.icon!=Icon::None) {
-        static const uint16_t hourglass[12]={127,34,34,20,8,20,34,42,54,127};
-        static const uint16_t stopwatch[12]={28,8,92,34,73,73,81,65,34,28};
-        static const uint16_t tomato[12]={8,42,28,62,127,123,127,62};
-        static const uint16_t cup[12]={10,20,0,63,97,97,63,30};
-        bool pomo=view.icon==Icon::Tomato || view.icon==Icon::Cup;
-        const uint16_t* mark=view.icon==Icon::Hourglass?hourglass:view.icon==Icon::Stopwatch?stopwatch:
-                             view.icon==Icon::Tomato?tomato:cup;
-        frame.mask(mark,7,1,pomo?0:2,view.color);
+        static const uint16_t marks[][12]={
+            {}, // None
+            {127,34,34,20,8,20,34,42,54,127}, // Hourglass
+            {28,8,92,34,73,73,81,65,34,28}, // Stopwatch
+            {8,42,28,62,127,123,127,62}, // Tomato
+            {10,20,0,63,97,97,63,30}, // Cup
+            {0,0,56,40,511,257,511,273,257,511}, // Briefcase
+            {0,0,4,12,28,60,124,60,28,12,4}, // Play
+            {0,0,102,102,102,102,102,102,102,102}, // Pause
+        };
+        bool interval=view.icon!=Icon::Hourglass && view.icon!=Icon::Stopwatch;
+        frame.mask(marks[static_cast<unsigned>(view.icon)],9,1,interval?0:2,view.color);
         if (view.paused) for (int y=10;y<=13;++y) {
             frame.pixel(3,y,view.color); frame.pixel(5,y,view.color);
         }
@@ -192,7 +196,7 @@ inline Frame paint(const Layout& view,const Font& denki,const Font& nega,const F
         TextRun digits(view.main,denki,maru);
         bool small=digits.width>42;
         if (small) digits=TextRun(view.main,nega,denki);
-        digits.draw(frame,pomo?(small?8:4):(small?5:2),view.color,elapsed,10,true);
+        digits.draw(frame,interval?(small?8:4):(small?5:2),view.color,elapsed,10,true);
     } else if (!view.stampLine.empty() || !view.weatherKind.empty()) {
         int left=view.weatherKind.empty()?0:11;
         TextRun value(view.main,denki,maru);

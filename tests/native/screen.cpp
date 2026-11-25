@@ -35,13 +35,27 @@ int main() {
     assert(screen(clock,0,utc).main=="作業中");
     assert(screen(clock,3900,utc).sub=="00:00");
     clock.command(Action::Busy,4000);
-    assert(screen(clock,4000,utc).main=="BUSY READY");
+    auto ready=screen(clock,4000,utc);
+    assert(ready.icon==Icon::Play && ready.main=="30:00" && ready.sub.empty());
+    clock.command(Action::Center,4000);
+    auto busy=screen(clock,5000,utc);
+    assert(busy.icon==Icon::Briefcase && busy.main=="29:59" && busy.color==amber);
+    auto rest=screen(clock,1804000,utc);
+    assert(rest.icon==Icon::Cup && rest.main=="05:00" && rest.color==blue);
+    clock.command(Action::Center,1805000);
+    auto paused=screen(clock,1810000,utc);
+    assert(paused.icon==Icon::Pause && paused.main=="04:59" && paused.color==blue);
+    clock.command(Action::HoldCenter,1810010);
+    clock.busy.focus=60;
+    auto hour=screen(clock,1810020,utc);
+    assert(hour.main=="1:00:00" && hour.icon==Icon::Play);
     Clock counters;
     counters.nav.page[3]=5;
     auto timer=screen(counters,0,utc);
     assert(timer.icon==Icon::Hourglass);
     Glyph digit{'?',6,5,{31},0};
     Font numbers{&digit,1};
+    Font empty{&digit,0};
     Clock menus;
     for (Level level:{Level::Category,Level::Menu}) {
         menus.nav.level=level;
@@ -62,6 +76,14 @@ int main() {
             }
         }
     }
+    for (const auto& state:{ready,busy,rest,paused,hour}) {
+        auto frame=paint(state,numbers,empty,empty,0);
+        // All states use the large face on the right, including the hour preset.
+        assert(frame.pixels[(4*52+51)*3] && frame.refreshAfter==std::numeric_limits<int>::max());
+        const int firstDigit=52-TextRun(state.main,numbers,empty).width;
+        assert(firstDigit>10 && frame.pixels[(4*52+firstDigit)*3]);
+        assert(frame.pixels[(4*52+10)*3]==0);
+    }
     auto face=paint(timer,numbers,numbers,numbers,0);
     assert(face.pixels[(2*52+1)*3] && face.pixels[(2*52+51)*3]);
     assert(face.pixels[(2*52+9)*3]==0);
@@ -70,12 +92,13 @@ int main() {
     auto watch=screen(counters,3600000,utc);
     assert(watch.icon==Icon::Stopwatch && watch.main=="1:00:00");
     counters.nav.page[3]=4;
-    assert(screen(counters,0,utc).ready);
+    auto pomoReady=screen(counters,0,utc);
+    assert(pomoReady.ready && pomoReady.main=="25:00");
     counters.pomo.command(Action::Center,0);
     assert(screen(counters,1000,utc).icon==Icon::Tomato);
-    assert(screen(counters,600000,utc).icon==Icon::Cup);
-    counters.pomo.command(Action::Center,600100);
-    assert(screen(counters,600200,utc).paused);
+    assert(screen(counters,25*60000,utc).icon==Icon::Cup);
+    counters.pomo.command(Action::Center,25*60000+100);
+    assert(screen(counters,25*60000+200,utc).paused);
 
     Clock pop;
     std::string title="長い通知のスクロールを末尾のタイトルまで確認する";
