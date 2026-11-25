@@ -26,6 +26,8 @@ Ulanzi TC002 の 52 × 16 ドット画面で日本語の時計、タイマー、
 
 ## Windows 設定アプリの使い方
 
+開発通知は BUSY タイマーの計時中にも流れます。ChatGPT の Dot から届く新着を時計に表示するには、PC ブリッジに加えてブラウザー拡張を設定してください。[Dot 新着通知の設定](docs/operation.md#chatgpt-dot-の新着を受け取る)
+
 右側の「設定メニュー」から「接続と表示」と「OS セットアップ」を切り替えます。「対象の時計」の画像は表示例です。同じ欄の「保存済みの接続先」には、最後に保存した IPv4 アドレスが表示されます。PC ブリッジの稼働状態は「接続と表示」→「状態を確認」で照会します。応答、ビルドの進行状況、エラーは画面下部に表示され、別のページへ移っても確認できます。
 
 ![設定アプリの「接続と表示」。時計・天気・GitHub の設定、PC ブリッジの操作、右側の設定メニューと保存済みの接続先](docs/studio-settings.png)
@@ -110,6 +112,10 @@ $deviceIp = Read-Host "時計の IPv4 アドレス"
 - [Ulanzi の公式開発リポジトリ](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002)・[FlyThings の IDE ガイド](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/IDE使用说明/说明文档.md)
 
 ## 動作確認
+
+2026年11月25日、BUSY 計時中の TC002 に、Chrome 拡張の登録先から Dot のテスト新着を1件送りました。実機の LED で「GPT dot新着通知」がスクロールし、BUSY の残り時間表示に戻ることを確認しました。同じ実機で時計側テスト9件とライブフィード検査が通過しました。
+
+同日作成した常設用 `update.img` は 1,401,404 バイト、SHA-256 は `abd7b1f97311441db8cac91ff9b0db82db4b3cb4c3b7bb5b9c0ecf18e918d482` です。イメージを展開して全47ファイルを照合し、常設時に起動する `/res/lib/libzkgui.so` が実機から読み戻したライブラリとバイト単位で一致することを確認しました。
 
 2026年11月24日、公開用の履歴を新規クローンし、ローカル設定とビルド出力のない状態から試しました。Windows PC には Python 3.12、Git、FlyThings IDE 20260403 と Z21 開発パッケージを用意しました。
 
