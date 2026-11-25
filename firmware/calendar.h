@@ -2,9 +2,14 @@
 #include <cmath>
 #include <ctime>
 #include <cstdio>
+#include <cstdint>
+#include <limits>
 #include <string>
 
 namespace tc {
+inline bool usableEpoch(int64_t seconds) {
+    return seconds >= 1577836800 && seconds <= std::numeric_limits<time_t>::max();
+}
 inline std::tm localFields(time_t epoch, int offsetMinutes=540) {
     time_t shifted = epoch + offsetMinutes * 60;
     std::tm result{};

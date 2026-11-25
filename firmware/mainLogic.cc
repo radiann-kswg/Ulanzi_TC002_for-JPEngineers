@@ -1,5 +1,6 @@
 // FlyThings includes this file from its generated mainActivity translation unit.
 #include "tc/screen.h"
+#include "tc/time_sync.h"
 #include "tc/fonts.h"
 #include "pages/PageBase.h"
 #include "managers/AudioManager.h"
@@ -13,6 +14,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <chrono>
+#include <condition_variable>
 #include <fstream>
 #include <mutex>
 #include <sstream>
@@ -36,6 +38,9 @@ Millis lastRead=-10000;
 ino_t feedInode=0;
 const char* saved="/data/tc002-dev.prefs";
 std::thread wifiStartup;
+std::mutex syncLock;
+std::condition_variable syncWake;
+bool stopSync = false;
 std::string savedValues;
 Millis nowMs() {
     return std::chrono::duration_cast<std::chrono::milliseconds>(
@@ -99,7 +104,15 @@ void pollHardware(Millis now) {
     struct stat st{};
     if (stat(path,&st)==0 && st.st_size>0 && st.st_size<=262144 && feedInode!=st.st_ino) {
         std::ifstream in(path);
-        if (readFeed(in,app.feed)) { feedInode=st.st_ino; saveIfChanged(); }
+        if (readFeed(in,app.feed)) {
+            feedInode=st.st_ino;
+            // /tmp is cleared on reboot. The incoming snapshot provides UTC when NTP is unavailable.
+            if (!usableEpoch(time(nullptr)) && usableEpoch(app.feed.generated)) {
+                timespec utc{static_cast<time_t>(app.feed.generated), 0};
+                clock_settime(CLOCK_REALTIME, &utc);
+            }
+            saveIfChanged();
+        }
     }
     static Millis nextBattery=0;
     if (now>=nextBattery) {
@@ -211,8 +224,21 @@ static void onUI_init() {
     KeyManager::getInstance().addKeyEventCallback(keyEvent);
     KeyManager::getInstance().start();
     update();
-    if (deviceIp().empty() && !wifiStartup.joinable())
-        wifiStartup=std::thread([]{ base::wifiOnAndWait(10); });
+    if (!wifiStartup.joinable()) {
+        stopSync=false;
+        wifiStartup=std::thread([]{
+            if (deviceIp().empty()) base::wifiOnAndWait(10);
+            std::unique_lock<std::mutex> lock(syncLock);
+            while (!stopSync) {
+                lock.unlock();
+                bool connected=!deviceIp().empty();
+                bool synced=connected && syncNetworkTime();
+                lock.lock();
+                auto delay=std::chrono::seconds(connected ? (synced ? 21600 : 60) : 1);
+                syncWake.wait_for(lock, delay, []{return stopSync;});
+            }
+        });
+    }
     if (debug) { std::ofstream ready("/tmp/tc002-dev.ready"); ready<<getpid()<<"\n"; }
     LOGI_TRACE("TC002Dev ready (MCU %s)",version.c_str());
 }
@@ -222,6 +248,11 @@ static void onUI_hide() {}
 static void onUI_quit() {
     KeyManager::getInstance().removeKeyEventCallback(keyEvent);
     KeyManager::getInstance().stop();
+    {
+        std::lock_guard<std::mutex> lock(syncLock);
+        stopSync=true;
+    }
+    syncWake.notify_all();
     if (wifiStartup.joinable()) wifiStartup.join();
 }
 static void onProtocolDataUpdate(const SProtocolData&) {}

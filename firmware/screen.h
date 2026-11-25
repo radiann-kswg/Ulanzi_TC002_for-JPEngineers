@@ -78,6 +78,10 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
         } else { v.main=clock.ip.empty()?"未接続":clock.ip; }
         return v;
     }
+    if (c==3 && p<=2 && !usableEpoch(utc)) {
+        v.main="時刻待ち";
+        return v;
+    }
     if (c==3 && p==0) {
         v.main=clockText(localFields(utc,clock.world.offset()),true);
         v.sub=clock.world.label()+(clock.world.summer?" DST":" STD");

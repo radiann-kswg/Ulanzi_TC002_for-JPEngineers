@@ -3,6 +3,7 @@
 using namespace tc;
 int main() {
     Clock clock;
+    assert(screen(clock,0,600).main=="時刻待ち");
     time_t utc=1704034800;
     assert(screen(clock,0,utc).main=="00:00:00");
     for (int d=0;d<7;++d) {
