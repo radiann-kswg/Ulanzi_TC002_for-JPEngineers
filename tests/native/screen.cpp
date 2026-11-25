@@ -102,11 +102,14 @@ int main() {
 
     Clock pop;
     std::string title="長い通知のスクロールを末尾のタイトルまで確認する";
-    pop.feed.events={{100000,"schedule-1-test-100000",title},{100001,"ci","復旧 main"}};
+    pop.command(Action::Busy,0);
+    pop.command(Action::Center,0);
+    pop.feed.events={{100000,"claude-input-1",title},{100001,"action-fail-2","CI main"},
+                     {100001,"schedule-1-job-100001","予定項目"},{100001,"legacy","復旧 main"}};
     pop.advance(0,100000);
-    assert(screen(pop,0,100000).service==1 && screen(pop,0,100000).servicePage==0);
+    assert(screen(pop,0,100000).service==1 && screen(pop,0,100000).servicePage==3);
     auto popupFrame=paint(screen(pop,0,100000),numbers,numbers,numbers,0);
-    TextRun popupText("予定 "+title,numbers,numbers);
+    TextRun popupText("Claude入力依頼 "+title,numbers,numbers);
     assert(popupFrame.advanceAfter==popupText.readTime(developerWidth) && popupFrame.advanceAfter>3500);
     pop.advance(3500,100003);
     assert(screen(pop,3500,100003).service==1);
@@ -121,7 +124,9 @@ int main() {
     pop.nextPopup();
     assert(screen(pop,3500,100003).servicePage==2 && screen(pop,3500,100003).service==0);
     pop.nextPopup();
-    assert(screen(pop,7000,100007).weekday>=0);
+    assert(pop.dueHistory[1].size()==1 && !pop.popupActive && pop.pending.empty());
+    auto resumed=screen(pop,90000,100090);
+    assert(resumed.icon==Icon::Briefcase && resumed.main=="28:30");
     pop.command(Action::Louder,8000);
     assert(screen(pop,8000,100008).service==-1);
 }

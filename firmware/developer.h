@@ -57,7 +57,7 @@ inline bool digitsOnly(const std::string& text) {
 }
 inline std::string ticketTitle(const std::string& text) {
     // The bridge emits "[status ]repo#number title". Keep the title near the front.
-    static const std::string prefixes[]={"草稿 ","PR 新規 ","PR 更新 ","PR 終了 ",
+    static const std::string prefixes[]={"草稿 ","PR作成 ","PR終了 ","Issue起票 ","PR 新規 ","PR 更新 ","PR 終了 ",
         "Issue 新規 ","Issue 更新 ","Issue 終了 ","依頼 ","自分 承認済 ","自分 審査待ち ",
         "自分 未審査 ","自分 変更依頼 "};
     size_t start=0;
@@ -114,7 +114,7 @@ struct DevReading {
                 };
                 for (const auto& name:names)
                     if (state==name.key) { text.replace(0,state.size(),name.label); break; }
-                if (state=="failure" || state=="timed_out" || state=="startup_failure" || state=="失敗") {
+                if (v.popup || state=="failure" || state=="timed_out" || state=="startup_failure" || state=="失敗") {
                     mark=Symbol::Cross; ink=0xFA927C;
                 } else if (state=="success" || state=="復旧") { mark=Symbol::Check; ink=green; }
             } else if (p==5) {

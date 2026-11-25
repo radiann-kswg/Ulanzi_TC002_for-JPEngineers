@@ -38,12 +38,13 @@ int main() {
     app.nav.page[3]=5; app.timer.minutes=1;
     app.command(Action::Center,1000);
     app.command(Action::Busy,2000);
-    app.feed.events.push_back({t+61,"x","CI"});
-    assert(app.advance(62000,t+61)==Sound::Alarm && app.pending.empty());
+    app.feed.events.push_back({t+61,"pr-open-x","r#1 CI"});
+    assert(app.advance(62000,t+61)==Sound::Alarm && !app.popupActive && app.pending.size()==1);
     app.command(Action::Busy,63000);
     assert(app.command(Action::Center,63000)==Sound::Silence);
     assert(!app.timer.elapsed.running && app.timer.left(63001)==60000);
     assert(app.advance(64000,t+63)==Sound::None && app.noticeUntil==0);
+    assert(app.popupActive && app.notice=="PR作成 r#1 CI");
     app.nav.page[3]=0;
     app.command(Action::Plus,65000); app.command(Action::HoldPlus,67000);
     assert(app.world.base==615);
@@ -57,6 +58,19 @@ int main() {
     assert(offline.scheduleRows(1,1,t).at(0).text.find("00:05")!=std::string::npos);
     offline.advance(1100,t);
     assert(offline.scheduleRows(1,0,t).size()==1);
+
+    Clock inbox;
+    inbox.feed.events={{t,"issue-open-1","r#1"},{t,"pr-open-2","r#2"},{t,"pr-close-2","r#2"},
+        {t,"action-fail-ci","CI"},{t,"claude-input-a","A"},{t,"codex-input-b","B"},{t,"dot-new-c",""},
+        {t,"legacy","PR通知 コメント"},{t,"schedule-2-test-1","Codexの予定"}};
+    inbox.advance(0,t);
+    for (auto label:{"Issue起票 r#1","PR作成 r#2","PR終了 r#2","GitHub Action失敗 CI",
+                     "Claude入力依頼 A","Codex入力依頼 B","GPT dot新着通知"}) {
+        assert(inbox.popupActive && inbox.notice==label);
+        inbox.nextPopup();
+    }
+    inbox.advance(1000,t+1);
+    assert(!inbox.popupActive && inbox.pending.empty() && inbox.dueHistory[2].size()==1);
 
     Clock collision;
     collision.pomo.focus=1; collision.timer.minutes=1;

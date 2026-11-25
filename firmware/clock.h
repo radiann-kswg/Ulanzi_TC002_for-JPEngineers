@@ -185,25 +185,29 @@ struct Clock {
             if (e.due>utc || int64_t(utc)-e.due>60 || !handled.insert(e.id).second) continue;
             order.push_back(e.id);
             if (order.size()>256) { handled.erase(order.front()); order.pop_front(); }
-            Popup popup{e.text,-1,-1};
-            if (e.text.find("PR ")==0 || e.text.find("PR通知 ")==0) popup={e.text,0,0};
-            else if (e.text.find("Issue ")==0 || e.text.find("Issue通知 ")==0) popup={e.text,0,3};
-            else if (e.text.find("失敗 ")==0 || e.text.find("復旧 ")==0) popup={e.text,0,2};
             for (int c=1;c<=2;++c) if (e.id.compare(0,11,"schedule-"+std::to_string(c)+"-")==0) {
                 dueHistory[c].push_front({e.due,dated(e.due)+" "+e.text+" 予定",false});
                 if (dueHistory[c].size()>32) dueHistory[c].pop_back();
-                popup={"予定 "+e.text,c,0};
             }
-            if (!nav.busy && pending.size()<12) pending.push_back(popup);
+            static const struct { const char* prefix; const char* title; int service,page; } kinds[]={
+                {"issue-open-","Issue起票",0,3}, {"pr-open-","PR作成",0,0},
+                {"pr-close-","PR終了",0,0}, {"action-fail-","GitHub Action失敗",0,2},
+                {"claude-input-","Claude入力依頼",1,3}, {"codex-input-","Codex入力依頼",2,3},
+                {"dot-new-","GPT dot新着通知",-1,-1}
+            };
+            for (const auto& kind:kinds) if (e.id.find(kind.prefix)==0) {
+                if (pending.size()<128)
+                    pending.push_back({kind.title+(e.text.empty()?std::string():" "+e.text),kind.service,kind.page});
+                break;
+            }
         }
         checkedAt=utc;
-        if (nav.busy) pending.clear();
         if (!popupActive && now>=noticeUntil) nextPopup();
         return cue;
     }
 
     void nextPopup() {
-        popupActive=!pending.empty() && !nav.busy && !alarmActive;
+        popupActive=!pending.empty() && !alarmActive;
         if (popupActive) {
             const auto& popup=pending.front();
             notice=popup.text; noticeService=popup.service; noticePage=popup.page;
