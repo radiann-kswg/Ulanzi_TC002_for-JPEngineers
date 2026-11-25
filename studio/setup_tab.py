@@ -101,17 +101,27 @@ def create_setup_page(parent, config_path, status):
     button(trial, "時計で一時実行", lambda: trial_action(False))
     button(trial, "一時実行を終了", lambda: trial_action(True))
     install = section(2, "Wi-Fi で常設する",
-                      "プロジェクト生成後、Image Build の前に時計の標準の秒針音を取り込みます。")
-    def import_tick():
+                      "Image Build の前に、この時計または同じ時計のバックアップから標準効果音を取り込みます。")
+    def import_sounds():
         try:
             address, adb = setup.device_target(config_path, ide.get().strip())
         except (OSError, ValueError, AttributeError) as exc:
             status.message(str(exc))
             return
-        status.run("標準の秒針音を取り込み中…", lambda: setup.import_clock_tick(address, adb))
+        status.run("標準効果音を取り込み中…", lambda: setup.import_stock_sounds(address, adb))
 
-    button(install, "標準の秒針音を取り込む", import_tick)
-    button(install, "GitHub で更新手順を開く", lambda: webbrowser.open(
+    def import_backup():
+        folder = filedialog.askdirectory(parent=page, mustexist=True, title="同じ時計のバックアップの ui/audio を選択")
+        if folder:
+            status.run("標準効果音を取り込み中…", lambda: setup.copy_stock_sounds(folder))
+
+    sources = ttk.Frame(install, style="Card.TFrame")
+    sources.pack(anchor="w", fill="x", pady=(0, 6))
+    button(sources, "時計から標準効果音を取り込む", import_sounds)
+    button(sources, "バックアップから取り込む", import_backup)
+    instructions = ttk.Frame(install, style="Card.TFrame")
+    instructions.pack(anchor="w")
+    button(instructions, "GitHub で更新手順を開く", lambda: webbrowser.open(
         "https://github.com/radiann-kswg/Ulanzi_TC002_for-JPEngineers/blob/main/docs/wifi-update.md"))
     card = section(3, "TF カードへのコピー（任意）",
                    "PC 上の update.img を FAT32 のカードに保存して照合します。")

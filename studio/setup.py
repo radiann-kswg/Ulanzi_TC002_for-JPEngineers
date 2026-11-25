@@ -7,6 +7,7 @@ import subprocess
 import tempfile
 
 from bridge.config import adb_command, read, update
+from scripts.device_audio import STOCK_FILES
 from .runner import console_python
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,21 +100,38 @@ def debug_device(address, adb, restore):
     return f"{address} の一時設定を解除しました。" if restore else f"{address} で独自時計が起動しました。"
 
 
-def import_clock_tick(address, adb):
+def copy_stock_sounds(source):
+    """Merge known factory files from this clock's backup into its personal build."""
     if not (PROJECT / ".project").is_file():
         raise ValueError("先に「プロジェクトを生成」を実行してください。")
-    serial = str(ipaddress.IPv4Address(address)) + ":5555"
+    source = Path(source)
+    available = [name for name in STOCK_FILES if (source / name).is_file()]
+    if not available:
+        raise RuntimeError("標準音源が見つかりません。同じ時計のバックアップの ui/audio を選んでください。")
     folder = PROJECT / "resources/audio"
-    folder.mkdir(parents=True, exist_ok=True)
-    # Keep the existing personal copy until a complete transfer has succeeded.
-    with tempfile.TemporaryDirectory(dir=folder.parent.parent) as work:
-        incoming = Path(work) / "Clock.mp3"
-        for args in (["connect", serial], ["-s", serial, "pull", "/res/ui/audio/Clock.mp3", str(incoming)]):
+    with tempfile.TemporaryDirectory(dir=PROJECT.parent) as work:
+        for name in available:
+            copy = Path(work) / name
+            shutil.copyfile(source / name, copy)
+            if not copy.stat().st_size:
+                raise RuntimeError(f"標準音源 {name} が空です。音源の読み出し元を確認してください。")
+        folder.mkdir(parents=True, exist_ok=True)
+        for name in available:
+            os.replace(Path(work) / name, folder / name)
+    missing = [name for name in STOCK_FILES if name not in available]
+    report = f"標準音源を{len(available)}点取り込みました。"
+    if missing:
+        report += "取り込み元にない音源　" + "、".join(missing) + "。"
+    return report + "FlyThings で Image Build を実行してください。"
+
+
+def import_stock_sounds(address, adb):
+    serial = str(ipaddress.IPv4Address(address)) + ":5555"
+    with tempfile.TemporaryDirectory() as work:
+        incoming = Path(work) / "audio"
+        for args in (["connect", serial], ["-s", serial, "pull", "/res/ui/audio", str(incoming)]):
             result = subprocess.run([adb, *args], capture_output=True, timeout=30,
                                     creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             if result.returncode:
-                raise RuntimeError("秒針音を取得できませんでした。時計の接続と /res/ui/audio/Clock.mp3 を確認してください。")
-        if not incoming.is_file() or not incoming.stat().st_size:
-            raise RuntimeError("時計から読み戻した Clock.mp3 が空です。")
-        os.replace(incoming, folder / "Clock.mp3")
-    return "この時計の標準の秒針音を取り込みました。FlyThings で Image Build を実行してください。"
+                raise RuntimeError("標準音源を取得できませんでした。時計の接続を確認するか、バックアップから取り込んでください。")
+        return copy_stock_sounds(incoming)

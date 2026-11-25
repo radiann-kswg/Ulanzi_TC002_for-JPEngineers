@@ -4,11 +4,10 @@ import ipaddress
 import json
 import os
 from pathlib import Path
-import shlex
 import subprocess
 import tempfile
 import time
-from device_audio import find_encoder, trial_cues
+from device_audio import STOCK_FILES, find_encoder, trial_cues
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "build/TC002Dev"
@@ -54,8 +53,10 @@ def debug(ip, adb, restore, audio_only=False):
         if not isinstance(resident,str) or not resident.startswith("/res/"):
             raise RuntimeError("Could not identify the resident application. Restart the TC002.")
         def running():
-            cmd="if grep -qF "+shlex.quote(resident)+" /proc/[0-9]*/maps 2>/dev/null; then echo TC002_RESIDENT; fi"
-            return shell(cmd)=="TC002_RESIDENT"
+            # The resident TC002 shell has no grep. Inspect the GUI process on the host.
+            maps=shell('for p in /proc/[0-9]*; do read -r name < "$p/comm" 2>/dev/null || continue; '
+                       'case "$name" in zkgui*) cat "$p/maps" 2>/dev/null;; esac; done')
+            return any(line.endswith(" "+resident) for line in maps.splitlines())
         if active is None and running():
             return
         if active==LIBRARY and shell("mv /tmp/EasyUI.cfg /tmp/tc002-dev.disabled && echo TC002_SAVED")!="TC002_SAVED":
@@ -73,10 +74,27 @@ def debug(ip, adb, restore, audio_only=False):
         with tempfile.TemporaryDirectory(prefix="tc002-trial-") as folder:
             work = Path(folder)
             encoder = find_encoder()
-            stock = None
-            if encoder and shell("if [ -r /res/ui/audio/Clock.mp3 ]; then echo TC002_STOCK; fi") == "TC002_STOCK":
+            personal = PROJECT / "resources/audio"
+            stock = personal / "Clock.mp3"
+            if not stock.is_file():
+                stock = None
+            if not stock and encoder and shell("if [ -r /res/ui/audio/Clock.mp3 ]; then echo TC002_STOCK; fi") == "TC002_STOCK":
                 stock = work / "stock-second.mp3"
                 run("-s", serial, "pull", "/res/ui/audio/Clock.mp3", str(stock))
+            # Only these filenames in the volatile debug project belong to this uploader.
+            if shell("mkdir -p /tmp/ui/audio && echo READY") != "READY":
+                raise RuntimeError("Cannot prepare temporary stock audio.")
+            publish = []
+            for name in STOCK_FILES:
+                path = personal / name
+                remote = "/tmp/ui/audio/" + name
+                if path.is_file():
+                    push(path, remote + ".new")
+                    publish.append("mv " + remote + ".new " + remote)
+                else:
+                    publish.append("rm -f " + remote)
+            if shell(" && ".join([*publish, "echo READY"])) != "READY":
+                raise RuntimeError("Cannot synchronize temporary stock audio.")
             for path in trial_cues(work, encoder, stock):
                 remote = "/tmp/ui/tc002/" + path.name
                 push(path, remote + ".new")

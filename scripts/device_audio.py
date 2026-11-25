@@ -10,6 +10,8 @@ ROOT = Path(__file__).resolve().parents[1]
 ORIGINALS = ROOT / "firmware/assets/audio"
 CUES = ("tick", "rotate", "button", "enter", "minute", "hour", "midnight", "rest", "resume", "alarm")
 CHIMES = ("minute", "hour", "midnight")
+STOCK_FILES = ("Btn.mp3", "Clock.mp3", "Enter.mp3", "Rotate.mp3", "Rotate.wav",
+               "SlowClock.mp3", "StopWatch.mp3", "Tip.mp3")
 
 def render(tick,level):
     peak=max(map(abs,tick))

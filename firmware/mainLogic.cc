@@ -121,36 +121,23 @@ void pollHardware(Millis now) {
         nextBattery=now+15000;
     }
 }
-void sound(Sound s) {
-    if (s==Sound::None) return;
+void sound(Sound cue) {
+    if (cue==Sound::None) return;
     static base::MediaPlayer player;
-    if (s==Sound::Silence) { player.stop(); return; }
-    if (!app.volume || (s==Sound::Tick && player.isPlaying())) return;
-    const char* name=nullptr;
-    const char* fallback=nullptr;
-    switch(s) {
-    case Sound::Tick: name="Clock.mp3"; fallback="tc002/tick.mp3"; break;
-    case Sound::Rotate: name="Rotate.mp3"; fallback="tc002/rotate.mp3"; break;
-    case Sound::Button: name="Btn.mp3"; fallback="tc002/button.mp3"; break;
-    case Sound::Enter: name="Enter.mp3"; fallback="tc002/enter.mp3"; break;
-    default: break;
-    }
-    if (name) {
-        player.onCompletion(nullptr);
-        player.onError(nullptr);
-        const std::string stock=std::string("/res/ui/audio/")+name;
-        player.play(access(stock.c_str(),R_OK)==0 ? stock : CONFIGMANAGER->getResFilePath(fallback));
+    static Sound playing=Sound::None;
+    if (cue==Sound::Silence || !app.volume) {
+        player.stop();
+        playing=Sound::None;
         return;
     }
-    const char* tone = s==Sound::Minute?"minute":s==Sound::Hour?"hour":
-        s==Sound::Midnight?"midnight":s==Sound::Rest?"rest":s==Sound::Resume?"resume":"alarm";
-    std::string rel=std::string("tc002/")+tone;
-    std::string path=CONFIGMANAGER->getResFilePath((rel+".mp3").c_str());
-    if (access(path.c_str(),R_OK)!=0) path="/tmp/ui/"+rel+".mp3";
-    if (access(path.c_str(),R_OK)!=0) path=CONFIGMANAGER->getResFilePath((rel+".wav").c_str());
-    if (access("/tmp/EasyUI.cfg",R_OK)==0) {
-        std::ofstream trace("/tmp/tc002-dev.cue");
-        trace<<time(nullptr)<<" "<<path<<" "<<(access(path.c_str(),R_OK)==0)<<"\n";
+    if (player.isPlaying() && !canInterrupt(playing,cue)) return;
+    auto readable=[](const std::string& path) { return access(path.c_str(),R_OK)==0; };
+    auto resource=[](const std::string& rel) { return CONFIGMANAGER->getResFilePath(rel.c_str()); };
+    auto path=soundPath(cue,resource,readable);
+    if (path.empty()) return;
+    static const bool debug=readable("/tmp/EasyUI.cfg");
+    if (debug) {
+        std::ofstream("/tmp/tc002-dev.cue")<<time(nullptr)<<" "<<path<<" 1\n";
         player.onError([path](int code,const std::string&){
             std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" error "<<code<<" "<<path<<"\n";
         });
@@ -159,7 +146,8 @@ void sound(Sound s) {
         });
     }
     int result=player.play(path);
-    if (result!=0 && access("/tmp/EasyUI.cfg",R_OK)==0)
+    playing=result==0 ? cue : Sound::None;
+    if (result!=0 && debug)
         std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" play "<<result<<" "<<path<<"\n";
 }
 void update() {
@@ -168,16 +156,14 @@ void update() {
     { std::lock_guard<std::mutex> lock(inputLock); actions.swap(batch); }
     Sound button=Sound::None;
     for (const auto& event: batch) {
-        button=app.command(event.first,event.second);
+        button=preferSound(button,app.command(event.first,event.second));
         if (event.first==Action::Quieter || event.first==Action::Louder)
             awtrix::AudioManager::getInstance().setVolume(app.volume);
-        if (button==Sound::Silence) sound(button);
     }
     if (!batch.empty()) saveIfChanged();
     pollHardware(now);
     auto cue=app.advance(now,utc);
-    if (cue!=Sound::None && !(cue==Sound::Tick && button!=Sound::None)) sound(cue);
-    else if (!app.alarmActive && button!=Sound::Silence) sound(button);
+    sound(app.alarmActive ? cue : preferSound(cue,button));
     Layout view=screen(app,now,utc);
     static Layout last;
     static Millis animationTime=0,entered=-1,redrawAt=0;

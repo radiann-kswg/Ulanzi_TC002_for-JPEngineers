@@ -6,15 +6,16 @@ void counterTicks(int page,bool busy) {
     Clock clock;
     clock.nav.page[3]=page;
     if (busy) clock.command(Action::Busy,0);
+    const Sound beat=page==6 && !busy ? Sound::StopwatchTick : Sound::Tick;
     auto advance=[&](Millis now) { return clock.advance(now,1704034800+now/1000); };
     assert(advance(1000)==Sound::None);
     clock.command(Action::Center,1250);
-    assert(advance(2249)==Sound::None && advance(2250)==Sound::Tick);
-    assert(advance(2300)==Sound::None && advance(3250)==Sound::Tick);
+    assert(advance(2249)==Sound::None && advance(2250)==beat);
+    assert(advance(2300)==Sound::None && advance(3250)==beat);
     clock.command(Action::Center,3350);
     assert(advance(5700)==Sound::None);
     clock.command(Action::Center,6000);
-    assert(advance(6899)==Sound::None && advance(6900)==Sound::Tick);
+    assert(advance(6899)==Sound::None && advance(6900)==beat);
     clock.command(Action::HoldCenter,6950);
     assert(advance(8000)==Sound::None);
 }
@@ -93,11 +94,11 @@ int main() {
     assert(parallel.advance(1250,t)==Sound::None);
     assert(parallel.advance(1500,t)==Sound::Tick);
     assert(parallel.advance(60500,t+59)==Sound::Rest);
-    assert(parallel.advance(61500,t+60)==Sound::Tick);
+    assert(parallel.advance(61500,t+60)==Sound::RestTick);
     assert(parallel.advance(120500,t+119)==Sound::Resume);
     parallel.command(Action::Busy,120550);
     assert(parallel.advance(121000,t+120)==Sound::None);
-    assert(parallel.advance(121250,t+120)==Sound::Tick);
+    assert(parallel.advance(121250,t+120)==Sound::StopwatchTick);
     parallel.nav.page[3]=1;
     assert(parallel.advance(121500,t+120)==Sound::None);
     assert(parallel.advance(122000,t+121)==Sound::Tick);
@@ -124,6 +125,6 @@ int main() {
     pomodoro.command(Action::Knob,1600);
     assert(pomodoro.advance(2250,t+1)==Sound::Tick);
     assert(pomodoro.advance(25*60000+250,t+1500)==Sound::Rest);
-    assert(pomodoro.advance(25*60000+1250,t+1501)==Sound::Tick);
+    assert(pomodoro.advance(25*60000+1250,t+1501)==Sound::RestTick);
     assert(pomodoro.advance(35*60000+250,t+2100)==Sound::Resume);
 }

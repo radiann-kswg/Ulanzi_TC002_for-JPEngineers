@@ -2,13 +2,12 @@
 #include "calendar.h"
 #include "display.h"
 #include "feed.h"
+#include "sound.h"
 #include "timing.h"
 #include <deque>
 #include <set>
 
 namespace tc {
-enum class Sound { None, Tick, Minute, Hour, Midnight, Rest, Resume, Alarm,
-                   Rotate, Enter, Button, Silence };
 inline const char* categoryName(int category) {
     static const char* names[]={"GitHub","Claude","Codex","時計"}; return names[category];
 }
@@ -98,7 +97,7 @@ struct Clock {
             selection=(selection%count+(back?count-1:1))%count;
             entered=now;
         }
-        return Sound::Button;
+        return a==Action::Previous || a==Action::Next ? Sound::Rotate : Sound::Button;
     }
     size_t itemCount() const {
         int c=nav.category,p=nav.page[c];
@@ -165,7 +164,15 @@ struct Clock {
                 std::tm t=localFields(utc);
                 cue=t.tm_sec?Sound::Tick:t.tm_min?Sound::Minute:t.tm_hour?Sound::Hour:Sound::Midnight;
             }
-        } else if (tickCounter().crossedSecond(lastAdvance,now)) cue=Sound::Tick;
+        } else {
+            const Elapsed& counter=tickCounter();
+            if (counter.crossedSecond(lastAdvance,now)) {
+                if (&counter==&stopwatch) cue=Sound::StopwatchTick;
+                else if ((&counter==&busy.elapsed && busy.resting(now)) ||
+                         (&counter==&pomo.elapsed && pomo.resting(now))) cue=Sound::RestTick;
+                else cue=Sound::Tick;
+            }
+        }
         lastAdvance=now;
         lastSecond=utc;
         Interval* cycles[]={&pomo,&busy};

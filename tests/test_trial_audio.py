@@ -41,7 +41,7 @@ class TrialAudioTests(unittest.TestCase):
                 return json.dumps({"startupLibPath": debug.LIBRARY}).encode()
             if args[-1].startswith("if [ -r"):
                 return b""
-            self.assertTrue(args[-1].startswith("mv "))
+            self.assertTrue(args[-1].startswith(("mv ", "mkdir -p /tmp/ui/audio", "rm -f /tmp/ui/audio/")))
             return b"READY\n"
 
         # A previous IDE image may still have local audio in its project tree.
@@ -80,6 +80,10 @@ class TrialAudioTests(unittest.TestCase):
         (self.root / "Release/libzkgui.so").touch()
         (self.root / "ui").mkdir()
         (self.root / "ui/main.ftu").touch()
+        personal = self.root / "resources/audio"
+        personal.mkdir(parents=True)
+        (personal / "Enter.mp3").write_bytes(b"personal enter")
+        stock_uploads = []
         marker = iter([b"", b"", b"123"])
 
         def adb(args, **kwargs):
@@ -99,6 +103,8 @@ class TrialAudioTests(unittest.TestCase):
                 self.assertTrue(local.is_file())
                 if local.name == "EasyUI.cfg":
                     self.assertNotEqual(local.parent, self.root)
+                if args[-1].startswith("/tmp/ui/audio/"):
+                    stock_uploads.append((local.read_bytes(), args[-1]))
                 return b""
             return b"READY"
 
@@ -106,3 +112,4 @@ class TrialAudioTests(unittest.TestCase):
                 patch.object(debug.time, "sleep"), patch.object(debug.subprocess, "check_output", adb):
             debug.debug("192.0.2.1", "mock-adb", False)
         self.assertFalse((self.root / "EasyUI.cfg").exists())
+        self.assertEqual(stock_uploads, [(b"personal enter", "/tmp/ui/audio/Enter.mp3.new")])
