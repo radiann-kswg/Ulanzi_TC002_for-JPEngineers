@@ -40,20 +40,43 @@ def sync(src, dst):
         if path.is_file():
             write_if_changed(dst / path.relative_to(src), path.read_bytes())
 
-def clock_strike(name):
-    # Three damped modes of the case beneath a short, noisy escapement click.
-    strikes={"minute":[(0,.70)], "hour":[(0,.48),(.115,.90)],
-             "midnight":[(0,.50),(.14,.68),(.32,1.0)]}[name]
+def minute_strike():
     rng=random.Random(42)
-    samples=[0.] * int((strikes[-1][0]+.32)*16000)
-    for delay,force in strikes:
-        for i in range(int(.30*16000)):
-            t=i/16000
-            body=sum(gain*math.exp(-t/tau)*math.sin(2*math.pi*hz*t)
-                     for hz,gain,tau in ((260,.68,.044),(471,.37,.030),(973,.17,.022)))
-            click=rng.uniform(-1,1)*math.exp(-t/.007)
-            samples[int(delay*16000)+i]+=force*min(1,t/.0014)*(body+.62*click)
+    samples=[0.] * int(.32*16000)
+    for i in range(int(.30*16000)):
+        t=i/16000
+        body=sum(gain*math.exp(-t/tau)*math.sin(2*math.pi*hz*t)
+                 for hz,gain,tau in ((260,.68,.044),(471,.37,.030),(973,.17,.022)))
+        click=rng.uniform(-1,1)*math.exp(-t/.007)
+        samples[i]=.70*min(1,t/.0014)*(body+.62*click)
     return struct.pack("<%dh"%len(samples),*(int(s*9500) for s in samples))
+
+# Each note gives its onset, MIDI pitch, ringing time and relative hammer strength.
+BELL_SCORES = {
+    "hour": [(0, 67, .58, .88)],
+    "noon": [(0, 67, .36, .75), (.23, 71, .32, .64), (.43, 74, .36, .71),
+             (.70, 78, .38, .65), (.99, 79, .58, .80)],
+    "midnight": [(0, 74, .45, .62), (.30, 69, .42, .55), (.59, 67, .47, .58),
+                 (.94, 62, .64, .66)],
+    "notification": [(0, 76, .12, .44), (.09, 83, .19, .53)],
+}
+
+def bell_phrase(notes):
+    rate = 16000
+    samples = [0.] * round(max(start + length for start, _, length, _ in notes) * rate)
+    for start, pitch, length, strength in notes:
+        hz = 440 * 2 ** ((pitch - 69) / 12)
+        offset = round(start * rate)
+        for i in range(round(length * rate)):
+            t = i / rate
+            phase = 2 * math.pi * hz * t
+            # The brighter hammer partials fade first, leaving a pitched tail.
+            tone = (math.sin(phase) * math.exp(-3.8*t/length) +
+                    .38 * math.sin(2.01*phase) * math.exp(-6*t/length) +
+                    .18 * math.sin(3.93*phase) * math.exp(-11*t/length))
+            envelope = min(1, t/.004, (length-t)/.022)
+            samples[offset+i] += strength * envelope * tone
+    return struct.pack("<%dh" % len(samples), *(round(s*15500) for s in samples))
 
 def negaclip_face(width, rows):
     """Only enclosed transparent pixels belong to the white-cut letter."""
@@ -96,11 +119,11 @@ def generate_resources(target):
     sync(ROOT / "licenses", notices / "licenses")
     sync(assets / "licenses", notices / "firmware/assets/licenses")
     original = assets / "audio"
-    for name in NOTES:
+    for name in CUES:
         if not (original / (name + ".mp3")).is_file():
             raise RuntimeError(f"Missing original sound firmware/assets/audio/{name}.mp3")
     preserve_legacy_files(target, original)
-    for name in NOTES:
+    for name in CUES:
         write_if_changed(dest / (name + ".mp3"), (original / (name + ".mp3")).read_bytes())
     generate_wavs(dest)
 
@@ -117,7 +140,7 @@ def preserve_legacy_files(target, original):
         if isinstance(cfg, dict) and cfg.get("startupLibPath") == "/tmp/lib/tc002-dev.so":
             candidates.append(old_cfg)
     audio = target / "resources/tc002"
-    for name in NOTES:
+    for name in CUES:
         mp3 = audio / (name + ".mp3")
         if mp3.is_file() and mp3.read_bytes() != (original / mp3.name).read_bytes():
             candidates.append(mp3)
@@ -131,19 +154,22 @@ def preserve_legacy_files(target, original):
         print(f"Preserved previous local files outside the image project: {backup}", flush=True)
 
 
-NOTES = {"minute":[660], "hour":[660,880], "midnight":[523,659,784],
-         "rest":[784,523], "resume":[523,784], "alarm":[880,660,880],
+NOTES = {"rest":[784,523], "resume":[523,784], "alarm":[880,660,880],
          "tick":[440], "rotate":[620], "button":[740], "enter":[740,990]}
+CUES = ("minute", *BELL_SCORES, *NOTES)
 
 
 def generate_wavs(dest):
-    for name, tones in NOTES.items():
+    for name in CUES:
         with wave.open(str(dest/(name+".wav")), "wb") as out:
             out.setparams((1,2,16000,0,"NONE",""))
-            if name in ("minute","hour","midnight"):
-                out.writeframes(clock_strike(name))
+            if name == "minute":
+                out.writeframes(minute_strike())
                 continue
-            for freq in tones:
+            if name in BELL_SCORES:
+                out.writeframes(bell_phrase(BELL_SCORES[name]))
+                continue
+            for freq in NOTES[name]:
                 length = 360 if name in ("tick", "rotate", "button", "enter") else 1600
                 for_sample = [int(5200*min(1,i/100,(length-i)/250)*math.sin(2*math.pi*freq*i/16000)) for i in range(length)]
                 out.writeframes(struct.pack("<%dh"%length,*for_sample)+bytes(640))
@@ -155,13 +181,13 @@ def regenerate_audio(ffmpeg):
     with tempfile.TemporaryDirectory() as work:
         folder = Path(work)
         generate_wavs(folder)
-        for name in NOTES:
+        for name in CUES:
             path = folder / (name + ".mp3")
             subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error",
                             "-i", folder / (name + ".wav"), "-af", "adelay=115",
                             "-ar", "48000", "-ac", "2", "-codec:a", "libmp3lame", "-b:a", "320k",
                             "-write_xing", "0", "-id3v2_version", "0", "-map_metadata", "-1", path], check=True)
-        for name in NOTES:
+        for name in CUES:
             write_if_changed(dest / (name + ".mp3"), (folder / (name + ".mp3")).read_bytes())
 
 def source_archive(sample):
@@ -310,7 +336,7 @@ if __name__=="__main__":
     ap.add_argument("--ide", type=Path, default=os.environ.get("FLYTHINGS_HOME"), help="FlyThings installation root")
     ap.add_argument("--output", type=Path, default=TARGET, help="Generated FlyThings project directory")
     ap.add_argument("--prepare-only", action="store_true", help="Prepare a project for IDE import without compiling")
-    ap.add_argument("--regenerate-audio", type=Path, metavar="FFMPEG", help="Regenerate the ten original checked-in MP3s using FFmpeg 7.1")
+    ap.add_argument("--regenerate-audio", type=Path, metavar="FFMPEG", help="Regenerate the checked-in MP3s using FFmpeg 7.1")
     args=ap.parse_args()
     try:
         if args.regenerate_audio:

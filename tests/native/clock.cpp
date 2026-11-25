@@ -40,11 +40,11 @@ int main() {
     app.command(Action::Center,1000);
     app.command(Action::Busy,2000);
     app.feed.events.push_back({t+61,"pr-open-x","r#1 CI"});
-    assert(app.advance(62000,t+61)==Sound::Alarm && !app.popupActive && app.pending.size()==1);
+    assert(app.advance(62000,t+61)==Sound::TimerExpired && !app.popupActive && app.pending.size()==1);
     app.command(Action::Busy,63000);
     assert(app.command(Action::Center,63000)==Sound::Silence);
     assert(!app.timer.elapsed.running && app.timer.left(63001)==60000);
-    assert(app.advance(64000,t+63)==Sound::None && app.noticeUntil==0);
+    assert(app.advance(64000,t+63)==Sound::Notification && app.noticeUntil==0);
     assert(app.popupActive && app.notice=="PR作成 r#1 CI");
     app.nav.page[3]=0;
     app.command(Action::Plus,65000); app.command(Action::HoldPlus,67000);
@@ -64,11 +64,13 @@ int main() {
     inbox.feed.events={{t,"issue-open-1","r#1"},{t,"pr-open-2","r#2"},{t,"pr-close-2","r#2"},
         {t,"action-fail-ci","CI"},{t,"claude-input-a","A"},{t,"codex-input-b","B"},{t,"dot-new-c",""},
         {t,"legacy","PR通知 コメント"},{t,"schedule-2-test-1","Codexの予定"}};
-    inbox.advance(0,t);
+    assert(inbox.advance(0,t)==Sound::Notification);
     for (auto label:{"Issue起票 r#1","PR作成 r#2","PR終了 r#2","GitHub Action失敗 CI",
                      "Claude入力依頼 A","Codex入力依頼 B","GPT dot新着通知"}) {
         assert(inbox.popupActive && inbox.notice==label);
-        inbox.nextPopup();
+        assert(inbox.advance(50,t)==Sound::None);
+        bool another=!inbox.pending.empty();
+        assert(inbox.nextPopup()==(another ? Sound::Notification : Sound::None));
     }
     inbox.advance(1000,t+1);
     assert(!inbox.popupActive && inbox.pending.empty() && inbox.dueHistory[2].size()==1);
@@ -77,11 +79,12 @@ int main() {
     collision.pomo.focus=1; collision.timer.minutes=1;
     collision.pomo.command(Action::Center,0); collision.timer.command(Action::Center,0);
     collision.advance(59000,t-1);
-    assert(collision.advance(60000,t)==Sound::Alarm);
+    assert(collision.advance(60000,t)==Sound::TimerExpired);
     assert(collision.advance(60100,t)==Sound::None);
+    assert(collision.advance(62000,t+2)==Sound::Alarm);
     collision.nav.page[3]=5;
-    assert(collision.command(Action::Center,60101)==Sound::Silence);
-    assert(collision.advance(60200,t)==Sound::None);
+    assert(collision.command(Action::Center,62001)==Sound::Silence);
+    assert(collision.advance(62100,t+2)==Sound::None);
 
     Clock parallel;
     parallel.nav.page[3]=6;
@@ -124,7 +127,8 @@ int main() {
     pomodoro.timer.elapsed.reset();
     pomodoro.command(Action::Knob,1600);
     assert(pomodoro.advance(2250,t+1)==Sound::Tick);
-    assert(pomodoro.advance(25*60000+250,t+1500)==Sound::Rest);
+    assert(pomodoro.advance(25*60000+250,t+1500)==Sound::PomodoroRest);
     assert(pomodoro.advance(25*60000+1250,t+1501)==Sound::RestTick);
-    assert(pomodoro.advance(35*60000+250,t+2100)==Sound::Resume);
+    assert(pomodoro.advance(35*60000+250,t+2100)==Sound::PomodoroResume);
+    assert(pomodoro.advance(35*60000+300,t+2100)==Sound::None);
 }

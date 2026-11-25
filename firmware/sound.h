@@ -2,10 +2,11 @@
 #include <string>
 
 namespace tc {
-enum class Sound { None, Tick, RestTick, StopwatchTick, Minute, Hour, Midnight, Rest,
-                   Resume, Alarm, Rotate, Enter, Button, Silence };
+enum class Sound { None, Tick, RestTick, StopwatchTick, Minute, Hour, Noon, Midnight,
+                   Notification, Rest, PomodoroRest, Resume, PomodoroResume, TimerExpired, Alarm,
+                   Rotate, Enter, Button, Silence };
 
-enum class SoundPriority { Quiet, Beat, Chime, Control, Phase, Alert, Stop };
+enum class SoundPriority { Quiet, Beat, Chime, Control, Notice, Hourly, Phase, Alert, Stop };
 struct SoundAsset {
     const char* stock;
     const char* fallback;
@@ -22,10 +23,15 @@ inline SoundAsset soundAsset(Sound cue) {
     case Sound::Button:        return {"Btn.mp3", "button", P::Control};
     case Sound::Enter:         return {"Enter.mp3", "enter", P::Control};
     case Sound::Minute:        return {nullptr, "minute", P::Chime};
-    case Sound::Hour:          return {nullptr, "hour", P::Chime};
-    case Sound::Midnight:      return {nullptr, "midnight", P::Chime};
+    case Sound::Hour:          return {nullptr, "hour", P::Hourly};
+    case Sound::Noon:          return {nullptr, "noon", P::Hourly};
+    case Sound::Midnight:      return {nullptr, "midnight", P::Hourly};
+    case Sound::Notification:  return {nullptr, "notification", P::Notice};
     case Sound::Rest:          return {nullptr, "rest", P::Phase};
+    case Sound::PomodoroRest:  return {nullptr, "midnight", P::Phase};
     case Sound::Resume:        return {nullptr, "resume", P::Phase};
+    case Sound::PomodoroResume:return {nullptr, "noon", P::Phase};
+    case Sound::TimerExpired:  return {nullptr, "noon", P::Alert};
     case Sound::Alarm:         return {"Tip.mp3", "alarm", P::Alert};
     case Sound::Silence:       return {nullptr, nullptr, P::Stop};
     case Sound::None:          break;
@@ -39,7 +45,8 @@ inline Sound preferSound(Sound first, Sound next) {
 
 inline bool canInterrupt(Sound playing, Sound next) {
     auto priority = soundAsset(next).priority;
-    if (priority == SoundPriority::Beat || (playing == Sound::Rotate && next == Sound::Rotate))
+    if (priority == SoundPriority::Beat || (playing == Sound::Rotate && next == Sound::Rotate) ||
+        (playing == Sound::TimerExpired && next == Sound::Alarm))
         return false;
     return priority >= soundAsset(playing).priority;
 }

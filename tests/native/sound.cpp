@@ -39,4 +39,12 @@ int main() {
     assert(canInterrupt(Sound::Rotate,Sound::Enter));
     assert(!canInterrupt(Sound::Enter,Sound::Tick));
     assert(!canInterrupt(Sound::Rest,Sound::Enter));
+    for (auto name : {"noon", "midnight", "notification"})
+        files.insert(std::string("/tmp/ui/tc002/")+name+".mp3");
+    assert(path(Sound::Noon)=="/tmp/ui/tc002/noon.mp3" && path(Sound::TimerExpired)==path(Sound::Noon));
+    assert(path(Sound::PomodoroResume)==path(Sound::Noon));
+    assert(path(Sound::Midnight)=="/tmp/ui/tc002/midnight.mp3" && path(Sound::PomodoroRest)==path(Sound::Midnight));
+    assert(path(Sound::Notification)=="/tmp/ui/tc002/notification.mp3");
+    assert(!canInterrupt(Sound::TimerExpired,Sound::Alarm) && canInterrupt(Sound::TimerExpired,Sound::Silence));
+    assert(!canInterrupt(Sound::PomodoroRest,Sound::RestTick));
 }

@@ -121,10 +121,14 @@ void pollHardware(Millis now) {
         nextBattery=now+15000;
     }
 }
+base::MediaPlayer& effectPlayer() {
+    static base::MediaPlayer player;
+    return player;
+}
+Sound playing=Sound::None;
 void sound(Sound cue) {
     if (cue==Sound::None) return;
-    static base::MediaPlayer player;
-    static Sound playing=Sound::None;
+    auto& player=effectPlayer();
     if (cue==Sound::Silence || !app.volume) {
         player.stop();
         playing=Sound::None;
@@ -162,8 +166,9 @@ void update() {
     }
     if (!batch.empty()) saveIfChanged();
     pollHardware(now);
-    auto cue=app.advance(now,utc);
-    sound(app.alarmActive ? cue : preferSound(cue,button));
+    const bool allowPopup=canInterrupt(playing,Sound::Notification) || !effectPlayer().isPlaying();
+    auto cue=app.advance(now,utc,allowPopup);
+    if (!app.alarmActive) cue=preferSound(cue,button);
     Layout view=screen(app,now,utc);
     static Layout last;
     static Millis animationTime=0,entered=-1,redrawAt=0;
@@ -174,12 +179,12 @@ void update() {
         view.color==last.color && view.compact==last.compact && view.icon==last.icon &&
         view.ready==last.ready && view.paused==last.paused && view.weatherKind==last.weatherKind &&
         view.automatic==last.automatic && view.calendarPanel==last.calendarPanel && view.moonTenths==last.moonTenths;
-    if (same && now<redrawAt) return;
+    if (same && now<redrawAt) { sound(cue); return; }
     // Present every movement step even if a hardware call delayed this UI tick.
     animationTime=same?animationTime+nextStep:0;
     if (same && advanceAfter && animationTime>=advanceAfter) {
         if (view.popup) {
-            app.nextPopup();
+            cue=preferSound(cue,app.nextPopup(app.mayShowPopup(cue,allowPopup)));
             view=screen(app,now,utc);
         } else if (app.autoBrowse(now)) view=screen(app,now,utc);
         animationTime=0;
@@ -194,6 +199,7 @@ void update() {
         panel.send(frame);
         previous.swap(frame.pixels);
     }
+    sound(cue);
 }
 }
 static S_ACTIVITY_TIMEER REGISTER_ACTIVITY_TIMER_TAB[]={{1,50}};

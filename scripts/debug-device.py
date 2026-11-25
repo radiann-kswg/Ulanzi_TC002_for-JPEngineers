@@ -103,7 +103,7 @@ def debug(ip, adb, restore, audio_only=False):
     if audio_only:
         if not ours: raise RuntimeError("Start the temporary clock before replacing its sounds.")
         install_audio()
-        print("Updated ten temporary MP3 cues.")
+        print("Updated temporary MP3 cues.")
         return
     library=PROJECT/"Release/libzkgui.so"
     if not library.is_file(): raise RuntimeError("Build TC002Dev first.")

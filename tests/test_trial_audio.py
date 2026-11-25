@@ -45,7 +45,7 @@ class TrialAudioTests(unittest.TestCase):
             return b"READY\n"
 
         # A previous IDE image may still have local audio in its project tree.
-        # Trial selection always starts from the ten versioned originals.
+        # Trial selection starts from the versioned originals.
         with patch.object(debug, "PROJECT", self.root / "unrelated"), patch.object(
                 debug, "find_encoder", return_value="unused"), patch.object(debug.subprocess, "check_output", adb):
             debug.debug("192.0.2.1", "mock-adb", False, audio_only=True)
@@ -55,7 +55,7 @@ class TrialAudioTests(unittest.TestCase):
             self.assertEqual(target, "/tmp/ui/tc002/" + path.name + ".new")
         self.assertFalse((self.root / "unrelated").exists())
 
-    def test_factory_tick_only_changes_three_cues_inside_scratch_folder(self):
+    def test_factory_tick_only_changes_the_minute_cue_inside_scratch_folder(self):
         work = self.root / "scratch"
         work.mkdir()
         pcm = struct.pack("<64h", *([1000, -900] * 32))
@@ -67,8 +67,8 @@ class TrialAudioTests(unittest.TestCase):
 
         with patch.object(audio.subprocess, "check_output", return_value=pcm), patch.object(audio.subprocess, "run", encode):
             files = audio.trial_cues(work, "encoder", work / "stock-second.mp3")
-        self.assertEqual({p.stem for p in files if p.parent == work}, set(audio.CHIMES))
-        self.assertEqual([p.read_bytes() for p in self.originals.iterdir()], [b"original"] * 10)
+        self.assertEqual({p.stem for p in files if p.parent == work}, {"minute"})
+        self.assertEqual([p.read_bytes() for p in self.originals.iterdir()], [b"original"] * len(audio.CUES))
         self.assertCountEqual([p.stem for p in files], audio.CUES)
 
     def test_without_encoder_uses_originals(self):
