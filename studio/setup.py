@@ -97,3 +97,23 @@ def debug_device(address, adb, restore):
         args.append("--restore")
     run_logged(args, "restore" if restore else "debug")
     return f"{address} の一時設定を解除しました。" if restore else f"{address} で独自時計が起動しました。"
+
+
+def import_clock_tick(address, adb):
+    if not (PROJECT / ".project").is_file():
+        raise ValueError("先に「プロジェクトを生成」を実行してください。")
+    serial = str(ipaddress.IPv4Address(address)) + ":5555"
+    folder = PROJECT / "resources/audio"
+    folder.mkdir(parents=True, exist_ok=True)
+    # Keep the existing personal copy until a complete transfer has succeeded.
+    with tempfile.TemporaryDirectory(dir=folder.parent.parent) as work:
+        incoming = Path(work) / "Clock.mp3"
+        for args in (["connect", serial], ["-s", serial, "pull", "/res/ui/audio/Clock.mp3", str(incoming)]):
+            result = subprocess.run([adb, *args], capture_output=True, timeout=30,
+                                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+            if result.returncode:
+                raise RuntimeError("秒針音を取得できませんでした。時計の接続と /res/ui/audio/Clock.mp3 を確認してください。")
+        if not incoming.is_file() or not incoming.stat().st_size:
+            raise RuntimeError("時計から読み戻した Clock.mp3 が空です。")
+        os.replace(incoming, folder / "Clock.mp3")
+    return "この時計の標準の秒針音を取り込みました。FlyThings で Image Build を実行してください。"

@@ -101,7 +101,16 @@ def create_setup_page(parent, config_path, status):
     button(trial, "時計で一時実行", lambda: trial_action(False))
     button(trial, "一時実行を終了", lambda: trial_action(True))
     install = section(2, "Wi-Fi で常設する",
-                      "標準アプリ 1.1.4 から update.img を書き込みます。PC と時計を同じ LAN に接続してください。")
+                      "プロジェクト生成後、Image Build の前に時計の標準の秒針音を取り込みます。")
+    def import_tick():
+        try:
+            address, adb = setup.device_target(config_path, ide.get().strip())
+        except (OSError, ValueError, AttributeError) as exc:
+            status.message(str(exc))
+            return
+        status.run("標準の秒針音を取り込み中…", lambda: setup.import_clock_tick(address, adb))
+
+    button(install, "標準の秒針音を取り込む", import_tick)
     button(install, "GitHub で更新手順を開く", lambda: webbrowser.open(
         "https://github.com/radiann-kswg/Ulanzi_TC002_for-JPEngineers/blob/main/docs/wifi-update.md"))
     card = section(3, "TF カードへのコピー（任意）",

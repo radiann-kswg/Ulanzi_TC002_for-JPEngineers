@@ -10,6 +10,23 @@ from studio import setup
 
 
 class SetupTest(unittest.TestCase):
+    def test_clock_tick_import_keeps_the_previous_copy_on_failure(self):
+        with tempfile.TemporaryDirectory() as temp, patch.object(setup, "PROJECT", Path(temp)):
+            (Path(temp) / ".project").touch()
+            destination = Path(temp) / "resources/audio/Clock.mp3"
+            def transfer(args, **kwargs):
+                if "pull" in args:
+                    self.assertEqual(args[1:5], ["-s", "192.0.2.1:5555", "pull", "/res/ui/audio/Clock.mp3"])
+                    Path(args[-1]).write_bytes(b"stock tick")
+                return setup.subprocess.CompletedProcess(args, 0)
+            with patch.object(setup.subprocess, "run", side_effect=transfer):
+                setup.import_clock_tick("192.0.2.1", "adb")
+            self.assertEqual(destination.read_bytes(), b"stock tick")
+            with patch.object(setup.subprocess, "run", return_value=setup.subprocess.CompletedProcess([], 1)):
+                with self.assertRaises(RuntimeError):
+                    setup.import_clock_tick("192.0.2.1", "adb")
+            self.assertEqual(destination.read_bytes(), b"stock tick")
+
     def test_gui_setup_starts_console_workers(self):
         gui = Path("Program Files") / "Python312/pythonw.exe"
         with patch.object(sys, "executable", str(gui)), patch.object(setup, "store_paths"), \
