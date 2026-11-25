@@ -45,6 +45,9 @@ class DesktopTest(unittest.TestCase):
                               "prompt":"private content"},"claude",100)
         self.assertEqual(entry[2],"waiting")
         self.assertNotIn("private content",entry)
+        ask={"thread_id":"2","hook_event_name":"PreToolUse","tool_name":"functions.request_user_input_async"}
+        self.assertEqual(desktop.hook(ask,"codex",100)[1][2],"waiting")
+        self.assertIsNone(desktop.hook(dict(ask,hook_event_name="PostToolUse"),"codex",101))
 
     def test_one_import_replaces_one_scope(self):
         with tempfile.TemporaryDirectory() as td:

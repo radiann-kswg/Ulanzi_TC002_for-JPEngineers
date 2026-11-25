@@ -21,11 +21,14 @@ def install(path,provider):
         handler={"type":"command","command":command,"timeout":3}
         group={"hooks":[handler]}
         if event=="PreToolUse":
-            group["matcher"]="AskUserQuestion|request_user_input"
+            group["matcher"]="AskUserQuestion|request_user_input(_async)?"
         entries=groups.setdefault(event,[])
         for entry in entries:
             for existing in entry.get("hooks",[]):
                 if existing.get("command")==old_command: existing["command"]=command
+            if (event=="PreToolUse" and entry.get("matcher")=="AskUserQuestion|request_user_input"
+                    and entry.get("hooks")==[handler]):
+                entry["matcher"]=group["matcher"]
         if group not in entries: entries.append(group)
     # Preserve existing settings, including any unrelated hooks.
     path.parent.mkdir(parents=True,exist_ok=True)

@@ -48,6 +48,24 @@ class StoreTest(unittest.TestCase):
         self.assertIn("event\t1000\tpr-close-21\t"+label+"\n",wire)
         self.assertNotIn("oldid",wire)
 
+    def test_input_edges_across_polls_and_hooks(self):
+        for c,source,prefix in ((1,"claude.agents","claude-input-"),(2,"codex.sessions","codex-input-")):
+            def put(name,at,state):
+                store.save(self.db,name,{"sessionScope":c,"sessions":[["id","テスト",state,at]]},at,90)
+            hook=f"hook.{c}.id"
+            put(source,1000,"waiting")  # Baseline, then a real request after resuming.
+            put(source,1001,"working")
+            put(hook,1005,"waiting")
+            put(source,1004,"working")  # Poll started before the hook arrived.
+            put(source,1006,"waiting")
+            put(hook,1007,"waiting")
+            put(hook,1008,"working")   # A short wait still reaches the next snapshot.
+            put(source,1009,"waiting")
+            wire=store.snapshot(self.db,weather.AKO,1010).decode()
+            self.assertEqual(wire.count(prefix),2)
+            self.assertIn("event\t1005\t"+prefix,wire)
+            self.assertIn("event\t1009\t"+prefix,wire)
+
     def test_slow_repository_poll_delivers_once_at_collection_time(self):
         body={"events":[[1000,"pr-open-1","r#1"]]}
         store.save(self.db,"github.tickets",body,1100,180)

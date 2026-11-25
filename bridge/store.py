@@ -3,6 +3,7 @@ import hashlib
 import json
 import sqlite3
 import unicodedata
+import uuid
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -30,7 +31,32 @@ def open_db(path=DEFAULT_DB):
     db.execute("""CREATE TABLE IF NOT EXISTS sources
         (name TEXT PRIMARY KEY, stamp INTEGER NOT NULL, ttl INTEGER NOT NULL,
          failed INTEGER NOT NULL, body TEXT NOT NULL)""")
+    db.execute("""CREATE TABLE IF NOT EXISTS input_states
+        (category INTEGER, uid TEXT, waiting INTEGER, stamp INTEGER, PRIMARY KEY(category,uid))""")
+    db.execute("""CREATE TABLE IF NOT EXISTS popup_events
+        (id TEXT PRIMARY KEY, stamp INTEGER, detail TEXT)""")
     return db
+
+def record_popup(db,uid,stamp,detail):
+    db.execute("DELETE FROM popup_events WHERE stamp<?",(stamp-60,))
+    db.execute("INSERT OR IGNORE INTO popup_events VALUES (?,?,?)",(uid,stamp,detail))
+
+def input_changes(db,name,data,stamp):
+    category=data["sessionScope"]
+    hook=name.startswith("hook.")
+    prior={} if hook else previous(db,name)
+    states={uid:(state=="waiting",label) for uid,label,state,_ in data["sessions"]}
+    for uid,*_ in prior.get("sessions",[]):
+        states.setdefault(uid,(False,""))
+    for uid,(waiting,label) in states.items():
+        before=db.execute("SELECT waiting,stamp FROM input_states WHERE category=? AND uid=?",
+                          (category,uid)).fetchone()
+        if before and before[1]>stamp: continue
+        if waiting and not (before and before[0]) and (hook or prior or before):
+            kind="claude-input-" if category==1 else "codex-input-"
+            record_popup(db,kind+uuid.uuid4().hex,stamp,label)
+        db.execute("INSERT OR REPLACE INTO input_states VALUES (?,?,?,?)",(category,uid,waiting,stamp))
+    db.execute("DELETE FROM input_states WHERE stamp<?",(stamp-7*86400,))
 
 def save(db, name, body, stamp, ttl):
     with db:
@@ -39,6 +65,9 @@ def save(db, name, body, stamp, ttl):
             prior={event[1] for event in previous(db,name).get("events",[])}
             body={**body,"events":[[due if uid in prior else stamp,uid,label]
                                   for due,uid,label in body["events"]]}
+        if "sessionScope" in body and (name.startswith("hook.") or name in ("claude.agents","codex.sessions")):
+            if not db.in_transaction: db.execute("BEGIN IMMEDIATE")
+            input_changes(db,name,body,stamp)
         db.execute("INSERT OR REPLACE INTO sources VALUES (?,?,?,0,?)",
                    (name, stamp, ttl, json.dumps(body, ensure_ascii=False, allow_nan=False)))
 
@@ -61,7 +90,8 @@ def snapshot(db, place, now):
     lines = ["TC002/1", f"at\t{now}", f"place\t{lat}\t{lon}\t{name}"]
     pages = defaultdict(list)
     weather_kinds=[]
-    notices = {}
+    notices = {uid:(stamp,uid,detail) for uid,stamp,detail in db.execute(
+        "SELECT id,stamp,detail FROM popup_events WHERE stamp BETWEEN ? AND ? ORDER BY stamp,rowid",(now-60,now))}
     schedules = defaultdict(dict)
     groups = {}
     sessions = defaultdict(dict)

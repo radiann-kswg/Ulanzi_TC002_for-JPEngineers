@@ -154,7 +154,7 @@ async def codex_sessions(now):
                         items.append(session(thread["id"],title(thread),"completed",thread["updatedAt"]))
             after=batch.get("nextCursor")
             if not after: break
-    return {"sessions":items,"sessionScope":2}
+    return {"sessions":items,"sessionScope":2,"observedAt":now}
 
 def claude_sessions(now,old=None):
     result=subprocess.run(["claude","agents","--json","--all"],capture_output=True,timeout=15,check=True)
@@ -175,15 +175,17 @@ def claude_sessions(now,old=None):
             before=prior.get(entry[0])
             if before and before[2]==mapped: entry[3]=before[3]
             items.append(entry)
-    return {"sessions":items,"sessionScope":1}
+    return {"sessions":items,"sessionScope":1,"observedAt":now}
 
 def hook(data,provider,now):
     category={"claude":1,"codex":2}[provider]
     ev=data.get("hook_event_name")
     state={"UserPromptSubmit":"working","PermissionRequest":"waiting","PostToolUse":"working",
            "Stop":"completed","StopFailure":"failed","Interrupt":"closed","SessionEnd":"closed"}.get(ev)
-    if ev=="PreToolUse" and data.get("tool_name","").split(".")[-1] in (
-            "AskUserQuestion","request_user_input"): state="waiting"
+    tool=data.get("tool_name","").split(".")[-1].split("__")[-1]
+    if ev=="PreToolUse" and tool in ("AskUserQuestion","request_user_input","request_user_input_async"):
+        state="waiting"
+    if ev=="PostToolUse" and tool=="request_user_input_async": return None
     if ev=="Notification":
         state={"permission_prompt":"waiting","elicitation_dialog":"waiting",
                "elicitation_url_dialog":"waiting","elicitation_response":"working"}.get(data.get("notification_type"))
