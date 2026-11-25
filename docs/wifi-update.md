@@ -27,7 +27,7 @@ $url = "http://${pcIp}:$port/update.img"
 Get-FileHash -Algorithm SHA256 -LiteralPath $image.FullName
 ```
 
-2026年11月25日に実機確認したイメージは 1,401,404 バイト、SHA-256 は `abd7b1f97311441db8cac91ff9b0db82db4b3cb4c3b7bb5b9c0ecf18e918d482` です。別のビルドには、そのビルド自身のハッシュを使います。
+2026年11月25日に標準音と時刻同期を実機確認した個人用イメージは 1,405,500 バイト、SHA-256 は `98f77e9ef40139636fcb93757959a7db0f2b5b19e6d06f41aa5c34bbeb0f6e7d` です。別のビルドには、そのビルド自身のハッシュを使います。
 
 ## 2. 更新を送信する
 
@@ -83,3 +83,49 @@ try {
 `running` とハッシュの一致を確認したら、配信ウィンドウで **Ctrl+C** を押して閉じます。時計を通常再起動しても独自時計が起動し、「接続と表示」で起動した PC ブリッジから天気や開発情報を再び受信できます。
 
 標準アプリに戻す場合、Ulanzi は USB-C 横の復旧ボタンを押したまま電源を入れる手順を案内しています。[TC002 の公式復旧案内](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/README_EN.md)・[標準アプリの OTA API](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/protocol/Ulanzi_TC002_protocol-http-mqtt_CN.md)
+
+<a id="resident-ota"></a>
+
+## 独自時計がすでに常設されている場合（開発者向け）
+
+独自時計には標準アプリの `POST /update` がありません。実機での2回目以降の更新では、Wi-Fi ADB でイメージを RAM に転送し、一時実行用のアプリから FlyThings の `UpgradeMonitor` に渡しました。TF カードも工場復元も不要です。[FlyThings のネットワーク更新手順](https://developer.flythings.cn/zh-hans/remote_update.html)
+
+1. 常設したいビルドの `update.img` と `Release/libzkgui.so` を PC に保管します。別の作業コピーで一時実行用アプリを準備します。`firmware/mainLogic.cc` に `#include "os/UpgradeMonitor.h"` を加え、既存の `onUI_Timer` を次に置き換えます。
+
+   ```cpp
+   static bool onUI_Timer(int) {
+       const char* dir = "/mnt/extsd/tc002-stock-tick";
+       if (rename("/mnt/extsd/tc002-stock-tick/armed",
+                  "/mnt/extsd/tc002-stock-tick/received") == 0) {
+           UpgradeMonitor::getInstance()->checkUpgradeFile(dir);
+       }
+       update();
+       return true;
+   }
+   ```
+
+2. この作業コピーで ARM ビルドを行い、「時計で一時実行」で起動します。下の PowerShell では `$adb` に SDK の `adb.exe`、`$serial` に対象の `IPv4:5555`、`$image` に最初に保管した常設用イメージの `Get-Item` 結果を指定します。転送先は起動ごとに消える専用ディレクトリです。
+
+   ```powershell
+   $dir = '/mnt/extsd/tc002-stock-tick'
+   & $adb connect $serial
+   $made = & $adb -s $serial shell "mkdir $dir && echo READY"
+   if ("$made".Trim() -ne 'READY') { throw '新しい転送先を作れませんでした。既存の更新状態を確認してください。' }
+   & $adb -s $serial push $image.FullName "$dir/update.img"
+   if ($LASTEXITCODE -ne 0) { throw 'イメージの転送に失敗しました。' }
+   $check = New-TemporaryFile
+   try {
+       & $adb -s $serial pull "$dir/update.img" $check.FullName
+       if ($LASTEXITCODE -ne 0 -or (Get-FileHash $check.FullName).Hash -ne (Get-FileHash $image.FullName).Hash) {
+           throw '転送したイメージを照合できませんでした。'
+       }
+   } finally {
+       Remove-Item -LiteralPath $check.FullName
+   }
+   ```
+
+3. 照合が済んだら給電を維持し、次の1行で更新を開始します。SDK が検査・書き込みを行って自動再起動します。前節の手順3で、最初に保管した**常設用**ライブラリと照合してください。
+
+   ```powershell
+   & $adb -s $serial shell "cd $dir && echo 3 > zkautoupgrade && touch armed"
+   ```
