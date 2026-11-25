@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "TC002 Dot 新着通知",
+  "version": "1.0.0",
+  "description": "開いている ChatGPT Dot の新着を TC002 に知らせます。",
+  "permissions": ["nativeMessaging"],
+  "background": {"service_worker": "background.js"},
+  "content_scripts": [{
+    "matches": ["https://chatgpt.com/dots", "https://chatgpt.com/dots/*"],
+    "js": ["inbox.js"],
+    "run_at": "document_start"
+  }]
+}
