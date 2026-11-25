@@ -46,7 +46,7 @@ def add_card_panel(group, status):
 
         def copy():
             checksum = tf_card.prepare_card(source, card)
-            return f"{card.root}update.img を照合しました。安全に取り外して本体へ挿入してください。\nSHA-256  {checksum}"
+            return f"{card.root}update.img を照合しました。Windows でカードを安全に取り外せます。\nSHA-256  {checksum}"
 
         status.run("カードへコピーし、読み戻して照合中…", copy)
 

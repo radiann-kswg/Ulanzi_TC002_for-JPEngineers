@@ -99,7 +99,7 @@ def create_setup_page(parent, config_path, status):
 
     button(trial, "時計で一時実行", lambda: trial_action(False))
     button(trial, "一時実行を終了", lambda: trial_action(True))
-    card = section(2, "常設用 TF カード",
-                   "TC002Dev の Image Build で生成した update.img と、FAT32 の TF カードのドライブ直下を選びます。")
+    card = section(2, "TF カードへのコピー（任意）",
+                   "PC 上の update.img を FAT32 のカードに保存して照合します。")
     add_card_panel(card, status)
     return page
