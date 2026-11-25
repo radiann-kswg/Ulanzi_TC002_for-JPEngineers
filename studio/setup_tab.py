@@ -2,6 +2,7 @@
 from datetime import datetime
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
+import webbrowser
 
 from . import setup
 from .card_panel import add_card_panel, path_field
@@ -99,7 +100,11 @@ def create_setup_page(parent, config_path, status):
 
     button(trial, "時計で一時実行", lambda: trial_action(False))
     button(trial, "一時実行を終了", lambda: trial_action(True))
-    card = section(2, "TF カードへのコピー（任意）",
+    install = section(2, "Wi-Fi で常設する",
+                      "標準アプリ 1.1.4 から update.img を書き込みます。PC と時計を同じ LAN に接続してください。")
+    button(install, "GitHub で更新手順を開く", lambda: webbrowser.open(
+        "https://github.com/radiann-kswg/Ulanzi_TC002_for-JPEngineers/blob/main/docs/wifi-update.md"))
+    card = section(3, "TF カードへのコピー（任意）",
                    "PC 上の update.img を FAT32 のカードに保存して照合します。")
     add_card_panel(card, status)
     return page
