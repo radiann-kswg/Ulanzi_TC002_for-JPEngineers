@@ -48,18 +48,30 @@ class SetupTest(unittest.TestCase):
 
     def test_gui_setup_starts_console_workers(self):
         gui = Path("Program Files") / "Python312/pythonw.exe"
-        with patch.object(sys, "executable", str(gui)), patch.object(setup, "store_paths"), \
-                patch.object(setup, "run_logged", return_value=Path("task.log")) as run:
+        with tempfile.TemporaryDirectory() as temp, patch.object(sys, "executable", str(gui)), \
+                patch.object(setup, "store_paths"), patch.object(setup, "run_logged") as run:
+            log = Path(temp) / "task.log"
+            log.touch()
+            run.return_value = log
             setup.setup_tools("", "")
-            setup.build_project("SDK", "")
+            report = setup.build_project("SDK", "")
+            self.assertIn(str(log), report)
+            self.assertNotIn("退避先", report)
             setup.debug_device("192.0.2.1", "adb", restore=True)
         self.assertEqual([Path(call.args[0][0]) for call in run.call_args_list],
                          [gui.with_name("python.exe")] * 4)
 
     def test_build_uses_selected_paths_without_splitting_spaces(self):
-        with patch.object(setup, "store_paths") as store, patch.object(setup, "run_logged") as run:
-            run.return_value = Path("prepare.log")
-            setup.build_project("E:/IDE root", "F:/source tree", prepare_only=True)
+        with tempfile.TemporaryDirectory() as temp, patch.object(setup, "store_paths") as store, \
+                patch.object(setup, "run_logged") as run:
+            backup = Path(temp) / "旧プロジェクト" / "TC002Dev-legacy-example"
+            log = Path(temp) / "prepare.log"
+            log.write_text(f"Preserved previous local files outside the image project: {backup}\n"
+                           "Project prepared.\n", encoding="utf-8")
+            run.return_value = log
+            report = setup.build_project("E:/IDE root", "F:/source tree", prepare_only=True)
+            self.assertIn(f"旧ファイルの退避先　{backup}", report)
+            self.assertIn(str(log), report)
             self.assertEqual(run.call_args.args[0][-5:],
                              ["--ide", "E:/IDE root", "--sample", "F:/source tree", "--prepare-only"])
             store.assert_called_once_with("E:/IDE root", "F:/source tree")

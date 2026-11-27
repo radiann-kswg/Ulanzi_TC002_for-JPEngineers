@@ -65,7 +65,14 @@ def build_project(ide, sample, prepare_only=False):
         args.append("--prepare-only")
     store_paths(ide, sample)
     log = run_logged(args, "prepare" if prepare_only else "build")
-    return f"{'プロジェクトを生成しました' if prepare_only else 'ARM ビルドが完了しました'}。ログ {log.name}"
+    report = ["プロジェクトを生成しました。" if prepare_only else "ARM ビルドが完了しました。"]
+    prefix = "Preserved previous local files outside the image project: "
+    with log.open(encoding="utf-8", errors="replace") as lines:
+        for line in lines:
+            if line.startswith(prefix):
+                report.append(f"旧ファイルの退避先　{line[len(prefix):].rstrip()}")
+    report.append(f"ログ　{log}")
+    return "\n".join(report)
 
 
 def open_ide(ide):
