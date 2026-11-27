@@ -1,4 +1,16 @@
-# ブランチ運用
+# Ulanzi_TC002_for-JPEngineers 開発指示
+
+このリポジトリの Claude Code・Codex 共通の指示は本ファイルで管理する。
+
+親の TC002 開発ワークスペース内でこのリポジトリを直接開いた場合も、最初の応答前に親の `../AGENTS.md` を読み、そこから指定された人格設定を適用する。単独クローンでは本ファイルを起点とする。
+
+## 実装と検証
+
+- このプロジェクトの独自 OS は TC002 の既存 Linux 上で動く FlyThings/C++ アプリである。時計単体で動く表示・入力・音・計時は `firmware/`、開発サービスの認証・情報収集と時計への配信は PC 側の `bridge/`、Windows 設定画面は `studio/` に実装する。[機器側の要件](docs/requirements.md)・[設定アプリの要件](docs/studio-requirements.md)
+- 機器側のビルドには [ビルドスクリプト](scripts/build-device.py) が指定する版の公式サンプルを使う。`build/TC002Dev/` は生成物なので、再生成で残す変更はこのリポジトリのソースに加える。IDE のセットアップと ARM ビルドは [README](README.md) を参照する。
+- リポジトリ直下で、変更に対応する Python・PowerShell・機器側 C++ のテストを実行する。コマンドと実機テストの前提は [操作ガイドの「確認」](docs/operation.md#確認) にある。時計への常設更新を扱う場合は、同じビルドを一時実行して表示と操作を確認し、使用する更新方式の手順に従う。[TF カード更新](README.md)・[Wi-Fi 更新](docs/wifi-update.md)
+
+## ブランチ運用
 
 - 通常の開発は `develop` ブランチで行う。
 - バージョンを公開するときは、`develop` を `main` に直接マージするか、`develop` から `main` へのプルリクエスト（PR）を作成してマージする。
