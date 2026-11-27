@@ -1,5 +1,6 @@
 #include "../../firmware/clock.h"
 #include <cassert>
+#include <cstdio>
 using namespace tc;
 
 // 2024-01-01 00:00:00 UTC. Convert the displayed boundary back to UTC for each dial.
@@ -15,19 +16,20 @@ void day(int page,int offset,bool summer) {
         time_t top=midnightUTC+h*3600-displayedOffset*60;
         Millis start=h*3600000LL;
         clock.advance(start,top-1);
-        int strikes=0,noons=0,midnights=0;
-        Millis previous=-1000;
+        int melodies=0,noons=0,midnights=0;
         for (int ms=0;ms<11000;ms+=50) {
             Sound cue=clock.advance(start+1000+ms,top+ms/1000);
-            if (cue==Sound::Hour) {
-                assert(ms-previous>=850);
-                previous=ms;
-                ++strikes;
+            // The displayed hour's own melody plays once, at the boundary.
+            if (cue>=Sound::Hour1 && cue<=Sound::Hour23) {
+                char expected[8];
+                std::snprintf(expected,sizeof expected,"hour%02d",h>=13 && h<=17 ? h-12 : h);
+                assert(ms==0 && h%12 && std::string(soundAsset(cue).fallback)==expected);
+                ++melodies;
             }
             noons+=cue==Sound::Noon;
             midnights+=cue==Sound::Midnight;
         }
-        assert(strikes==h%12 && noons==(h==12) && midnights==(h==0));
+        assert(melodies==(h%12!=0) && noons==(h==12) && midnights==(h==0));
     }
 }
 int main() {
@@ -41,7 +43,7 @@ int main() {
     time_t top=midnightUTC+11*3600;
     assert(clock.advance(0,top-1)==Sound::None);
     clock.feed.events.push_back({top,"dot-new-test","test"});
-    assert(clock.advance(2000,top+1)==Sound::Hour);
+    assert(clock.advance(2000,top+1)==Sound::Hour11);
     assert(!clock.popupActive && clock.pending.size()==1);
     clock.world.summer=true;
     assert(clock.advance(2100,top+1,false)==Sound::None);
@@ -59,9 +61,9 @@ int main() {
     corrected.world.base=0;
     top=midnightUTC+2*3600;
     corrected.advance(0,top-1);
-    assert(corrected.advance(1000,top)==Sound::Hour);
+    assert(corrected.advance(1000,top)==Sound::Hour2);
     assert(corrected.advance(1200,top-1)==Sound::None);
     assert(corrected.advance(1600,top)==Sound::None);
-    assert(corrected.advance(1850,top)==Sound::Hour);
+    assert(corrected.advance(1850,top)==Sound::None);
     assert(corrected.advance(2700,top+1)==Sound::Tick);
 }

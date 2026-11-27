@@ -42,8 +42,7 @@ struct Clock {
     int64_t lastSecond=-1, lastHourBoundary=-1;
     // A dial change establishes a new time reference without replaying its current hour.
     static constexpr int noDial=-2000;
-    int lastDial=noDial, strikesLeft=0;
-    Millis nextStrike=0;
+    int lastDial=noDial;
     bool wasRest[2]={false,false};
     bool alarmActive=false;
 
@@ -166,7 +165,6 @@ struct Clock {
         const bool onDial=!nav.busy && nav.category==3 && nav.level==Level::Screen && nav.page[3]<=1;
         const int offset=onDial ? (nav.page[3]==0 ? world.offset() : 540) : noDial;
         const int64_t delta=int64_t(utc)-lastSecond;
-        if (offset!=lastDial || delta < -3 || delta>3 || !volume) strikesLeft=0;
         if (onDial) {
             if (offset==lastDial && usableEpoch(utc) && delta>0 && delta<=3) {
                 auto t=localFields(utc,offset);
@@ -174,21 +172,9 @@ struct Clock {
                     const int64_t boundary=int64_t(utc)-t.tm_sec;
                     if (boundary!=lastHourBoundary) {
                         lastHourBoundary=boundary;
-                        if (t.tm_hour%12==0) cue=t.tm_hour==0 ? Sound::Midnight : Sound::Noon;
-                        else if (volume) {
-                            strikesLeft=t.tm_hour%12;
-                            nextStrike=now;
-                        }
+                        if (volume || t.tm_hour%12==0) cue=hourSound(t.tm_hour);
                     }
                 } else if (delta==1) cue=t.tm_sec ? Sound::Tick : Sound::Minute;
-            }
-            if (strikesLeft) {
-                cue=Sound::None;
-                if (now>=nextStrike) {
-                    --strikesLeft;
-                    nextStrike=now+850;
-                    cue=Sound::Hour;
-                }
             }
         } else {
             const Elapsed& counter=tickCounter();
@@ -239,15 +225,13 @@ struct Clock {
             }
         }
         checkedAt=utc;
-        if (alarmActive || soundAsset(cue).priority==SoundPriority::Phase) strikesLeft=0;
         if (!popupActive && now>=noticeUntil && mayShowPopup(cue,allowPopup))
             cue=preferSound(cue,nextPopup());
         return cue;
     }
 
     bool mayShowPopup(Sound cue,bool playerAvailable) const {
-        return playerAvailable && !alarmActive && !strikesLeft &&
-               soundAsset(cue).priority<SoundPriority::Hourly;
+        return playerAvailable && !alarmActive && soundAsset(cue).priority<SoundPriority::Hourly;
     }
 
     Sound nextPopup(bool allowed=true) {

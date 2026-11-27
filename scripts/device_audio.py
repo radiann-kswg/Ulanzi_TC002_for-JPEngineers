@@ -8,7 +8,8 @@ import subprocess
 RATE=24000
 ROOT = Path(__file__).resolve().parents[1]
 ORIGINALS = ROOT / "firmware/assets/audio"
-CUES = ("tick", "rotate", "button", "enter", "minute", "hour", "noon", "midnight",
+CUES = ("tick", "rotate", "button", "enter", "minute",
+        *("hour%02d" % hour for hour in (*range(1, 12), *range(18, 24))), "noon", "midnight",
         "notification", "rest", "resume", "alarm")
 STOCK_FILES = ("Btn.mp3", "Clock.mp3", "Enter.mp3", "Rotate.mp3", "Rotate.wav",
                "SlowClock.mp3", "StopWatch.mp3", "Tip.mp3")

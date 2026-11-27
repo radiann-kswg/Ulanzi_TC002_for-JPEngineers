@@ -44,6 +44,13 @@ int main() {
     assert(path(Sound::Noon)=="/tmp/ui/tc002/noon.mp3" && path(Sound::TimerExpired)==path(Sound::Noon));
     assert(path(Sound::PomodoroResume)==path(Sound::Noon));
     assert(path(Sound::Midnight)=="/tmp/ui/tc002/midnight.mp3" && path(Sound::PomodoroRest)==path(Sound::Midnight));
+    files.insert("/tmp/ui/tc002/hour11.mp3");
+    files.insert("/tmp/ui/tc002/hour23.mp3");
+    assert(hourSound(1)==Sound::Hour1 && hourSound(11)==Sound::Hour11);
+    assert(hourSound(13)==Sound::Hour1 && hourSound(17)==Sound::Hour5);
+    assert(hourSound(18)==Sound::Hour18 && hourSound(23)==Sound::Hour23);
+    assert(path(Sound::Hour11)=="/tmp/ui/tc002/hour11.mp3" && path(Sound::Hour23)=="/tmp/ui/tc002/hour23.mp3");
+    assert(path(Sound::Hour1).empty());
     assert(path(Sound::Notification)=="/tmp/ui/tc002/notification.mp3");
     assert(!canInterrupt(Sound::TimerExpired,Sound::Alarm) && canInterrupt(Sound::TimerExpired,Sound::Silence));
     assert(!canInterrupt(Sound::PomodoroRest,Sound::RestTick));

@@ -35,7 +35,7 @@ int main() {
     assert(app.advance(60000,t+59)==Sound::None);
     assert(app.advance(61000,t+60)==Sound::Minute);
     app.advance(3599000,t+3599);
-    assert(app.advance(3600000,t+3600)==Sound::Hour);
+    assert(app.advance(3600000,t+3600)==Sound::Hour1);
     app.nav.page[3]=5; app.timer.minutes=1;
     app.command(Action::Center,1000);
     app.command(Action::Busy,2000);

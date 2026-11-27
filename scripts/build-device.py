@@ -51,19 +51,52 @@ def minute_strike():
         samples[i]=.70*min(1,t/.0014)*(body+.62*click)
     return struct.pack("<%dh"%len(samples),*(int(s*9500) for s in samples))
 
+HOURS = (*range(1, 12), *range(18, 24))
+
+def phrase_length(notes):
+    return max(start + length for start, _, length, _ in notes)
+
+def hour_score(hour):
+    """Spell the dial's hour in binary from its top digit, in the key of the noon and midnight melodies."""
+    digits = format(hour % 12, "b")
+    notes, onset = [], 0.
+    for place, digit in enumerate(digits):
+        last = place == len(digits) - 1
+        if digit == "1":
+            # A 1 rings long. Morning hours climb the noon arpeggio by digit position (G4, B4, D5, G5).
+            # The evening's opening note moves from G4 (18–19) through B4 (20–21) to D5.
+            if hour < 18:
+                pitch = (67, 71, 74, 79)[place]
+            elif place == 0:
+                pitch = (67, 71, 74)[(hour - 18) // 2]
+            else:
+                pitch = 74
+            notes.append((round(onset, 2), pitch, .58 if last else .38, .78))
+            onset += .32
+        else:
+            # A 0 is a short tap back on the low G that both melodies pass through.
+            notes.append((round(onset, 2), 67, .30 if last else .16, .56))
+            onset += .17
+    # Give n digits the same total ringing time as the reference melody. The mean
+    # time per digit is thus 4/n times the four-digit beat, with the original swing intact.
+    reference = BELL_SCORES["noon" if hour < 18 else "midnight"]
+    scale = phrase_length(reference) / phrase_length(notes)
+    return [(start * scale, pitch, length * scale, strength) for start, pitch, length, strength in notes]
+
 # Each note gives its onset, MIDI pitch, ringing time and relative hammer strength.
 BELL_SCORES = {
-    "hour": [(0, 67, .58, .88)],
     "noon": [(0, 67, .36, .75), (.23, 71, .32, .64), (.43, 74, .36, .71),
              (.70, 78, .38, .65), (.99, 79, .58, .80)],
     "midnight": [(0, 74, .45, .62), (.30, 69, .42, .55), (.59, 67, .47, .58),
                  (.94, 62, .64, .66)],
     "notification": [(0, 76, .12, .44), (.09, 83, .19, .53)],
 }
+HOUR_SCORES = {"hour%02d" % hour: hour_score(hour) for hour in HOURS}
+BELL_SCORES.update(HOUR_SCORES)
 
 def bell_phrase(notes):
     rate = 16000
-    samples = [0.] * round(max(start + length for start, _, length, _ in notes) * rate)
+    samples = [0.] * max(round(start * rate) + round(length * rate) for start, _, length, _ in notes)
     for start, pitch, length, strength in notes:
         hz = 440 * 2 ** ((pitch - 69) / 12)
         offset = round(start * rate)
@@ -125,7 +158,7 @@ def generate_resources(target):
     preserve_legacy_files(target, original)
     for name in CUES:
         write_if_changed(dest / (name + ".mp3"), (original / (name + ".mp3")).read_bytes())
-    generate_wavs(dest)
+    generate_wavs(dest, (name for name in CUES if name not in HOUR_SCORES))
 
 
 def preserve_legacy_files(target, original):
@@ -144,6 +177,11 @@ def preserve_legacy_files(target, original):
         mp3 = audio / (name + ".mp3")
         if mp3.is_file() and mp3.read_bytes() != (original / mp3.name).read_bytes():
             candidates.append(mp3)
+    # Older projects contain the retired bell or uncompressed hourly melodies.
+    candidates += [audio / "hour.mp3", audio / "hour.wav"]
+    candidates.extend(audio / (name + ".wav") for name in HOUR_SCORES)
+    for hour in range(13, 18):
+        candidates.extend(audio / ("hour%02d.%s" % (hour, ext)) for ext in ("mp3", "wav"))
     existing = [path for path in candidates if path.is_file()]
     if existing:
         backup = Path(tempfile.mkdtemp(prefix=target.name + "-legacy-", dir=target.parent))
@@ -159,8 +197,8 @@ NOTES = {"rest":[784,523], "resume":[523,784], "alarm":[880,660,880],
 CUES = ("minute", *BELL_SCORES, *NOTES)
 
 
-def generate_wavs(dest):
-    for name in CUES:
+def generate_wavs(dest, names=CUES):
+    for name in names:
         with wave.open(str(dest/(name+".wav")), "wb") as out:
             out.setparams((1,2,16000,0,"NONE",""))
             if name == "minute":
@@ -183,9 +221,10 @@ def regenerate_audio(ffmpeg):
         generate_wavs(folder)
         for name in CUES:
             path = folder / (name + ".mp3")
+            rate, channels, bitrate = ("24000", "1", "16k") if name in HOUR_SCORES else ("48000", "2", "320k")
             subprocess.run([ffmpeg, "-nostdin", "-hide_banner", "-loglevel", "error",
                             "-i", folder / (name + ".wav"), "-af", "adelay=115",
-                            "-ar", "48000", "-ac", "2", "-codec:a", "libmp3lame", "-b:a", "320k",
+                            "-ar", rate, "-ac", channels, "-codec:a", "libmp3lame", "-b:a", bitrate,
                             "-write_xing", "0", "-id3v2_version", "0", "-map_metadata", "-1", path], check=True)
         for name in CUES:
             write_if_changed(dest / (name + ".mp3"), (folder / (name + ".mp3")).read_bytes())

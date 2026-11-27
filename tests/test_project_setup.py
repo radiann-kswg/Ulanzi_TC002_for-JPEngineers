@@ -49,6 +49,9 @@ class ProjectSetupTests(unittest.TestCase):
             canonical = (ROOT / "firmware/assets/audio/minute.mp3").read_bytes()
             self.assertEqual(mp3.read_bytes(), canonical)
             mp3.write_bytes(b"previous private chime")
+            (target / "resources/tc002/hour.wav").write_bytes(b"retired bell")
+            (target / "resources/tc002/hour23.wav").write_bytes(b"old afternoon melody")
+            (target / "resources/tc002/hour13.mp3").write_bytes(b"old afternoon one")
             (target / "stock-second.mp3").write_bytes(b"previous private tick")
             (target / "EasyUI.cfg").write_text('{"startupLibPath":"/tmp/lib/tc002-dev.so"}')
             with patch.object(builder, "REVISION", revision):
@@ -58,6 +61,15 @@ class ProjectSetupTests(unittest.TestCase):
             self.assertEqual((backup / "resources/tc002/minute.mp3").read_bytes(), b"previous private chime")
             self.assertEqual((backup / "stock-second.mp3").read_bytes(), b"previous private tick")
             self.assertTrue((backup / "EasyUI.cfg").is_file())
+            self.assertEqual((backup / "resources/tc002/hour.wav").read_bytes(), b"retired bell")
+            self.assertFalse((target / "resources/tc002/hour.wav").exists())
+            self.assertEqual((backup / "resources/tc002/hour23.wav").read_bytes(), b"old afternoon melody")
+            self.assertFalse(list((target / "resources/tc002").glob("hour*.wav")))
+            self.assertEqual((backup / "resources/tc002/hour13.mp3").read_bytes(), b"old afternoon one")
+            self.assertFalse((target / "resources/tc002/hour13.mp3").exists())
+            for name in builder.HOUR_SCORES:
+                self.assertEqual((target / "resources/tc002" / (name + ".mp3")).read_bytes(),
+                                 (ROOT / "firmware/assets/audio" / (name + ".mp3")).read_bytes())
             self.assertFalse((target / "stock-second.mp3").exists())
             self.assertFalse((target / "EasyUI.cfg").exists())
             self.assertEqual(mp3.read_bytes(), canonical)

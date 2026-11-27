@@ -22,13 +22,49 @@ class StrikeTest(unittest.TestCase):
 
     def test_each_score_fits_its_playback_window_and_decays(self):
         # Include the hardware lead-in and MP3 frame padding in the timing budget.
-        budgets={"hour":.85, "noon":1.8, "midnight":1.8, "notification":.5}
+        budgets={"noon":1.8, "midnight":1.8, "notification":.5}
+        budgets.update({"hour%02d"%hour:1.8 for hour in builder.HOURS})
         peaks={}
         for name, budget in budgets.items():
             samples=[v for v, in struct.iter_unpack("<h",builder.bell_phrase(builder.BELL_SCORES[name]))]
             peaks[name]=max(map(abs,samples))
             self.assertGreater(peaks[name],3000)
             self.assertLess(peaks[name],32767)
-            self.assertLess(len(samples)/16000+.17,budget)
+            overhead=.19 if name in builder.HOUR_SCORES else .17
+            self.assertLess(len(samples)/16000+overhead,budget)
             self.assertLess(abs(samples[-1]),8)
-        self.assertLess(peaks["notification"],peaks["hour"])
+        self.assertLess(peaks["notification"],min(peaks["hour%02d"%hour] for hour in builder.HOURS))
+
+    def test_hour_melodies_spell_the_hour_in_binary(self):
+        self.assertEqual(builder.HOURS, (*range(1,12), *range(18,24)))
+        for hour in builder.HOURS:
+            notes=builder.BELL_SCORES["hour%02d"%hour]
+            # Recover the accents, then check the rhythm independently of tempo.
+            ones=[strength>.65 for _,_,_,strength in notes]
+            self.assertEqual("".join("01"[one] for one in ones),format(hour%12,"b"))
+            self.assertTrue(all(pitch==67 for (_,pitch,_,_),one in zip(notes,ones) if not one))
+            self.assertEqual(notes[0][0],0)
+            tempo=notes[-1][2]/(.58 if ones[-1] else .30)
+            for note,later,one in zip(notes,notes[1:],ones):
+                self.assertAlmostEqual(later[0]-note[0],tempo*(.32 if one else .17))
+                self.assertAlmostEqual(note[2],tempo*(.38 if one else .16))
+            target=1.57 if hour<12 else 1.58
+            self.assertAlmostEqual(notes[-1][0]+notes[-1][2],target)
+            # The six evening openings lead from the morning G to midnight's D.
+            high=[pitch for (_,pitch,_,_),one in zip(notes,ones) if one]
+            climb=[pitch for pitch,one in zip((67,71,74,79),ones) if one]
+            evening_openings={18:67,19:67,20:71,21:71,22:74,23:74}
+            expected=climb if hour<12 else [evening_openings[hour]]+[74]*(len(high)-1)
+            self.assertEqual(high,expected)
+
+        for hour, pitches in [(11,[67,67,74,79]), (23,[74,67,74,74])]:
+            notes=builder.HOUR_SCORES["hour%02d"%hour]
+            self.assertEqual([pitch for _,pitch,_,_ in notes],pitches)
+            self.assertEqual([length>notes[1][2] for _,_,length,_ in notes],[True,False,True,True])
+
+    def test_packaged_hourly_mp3s_fit_in_80_kib(self):
+        assets = builder.ROOT / "firmware/assets/audio"
+        self.assertCountEqual((p.stem for p in assets.glob("hour*.mp3")), builder.HOUR_SCORES)
+        sizes = [(assets / (name + ".mp3")).stat().st_size for name in builder.HOUR_SCORES]
+        self.assertTrue(all(sizes))
+        self.assertLessEqual(sum(sizes), 80 * 1024)
