@@ -65,7 +65,7 @@ int main() {
     hold.ended(play,13990);
     assert(!hold.holds(13990));
     hold.start(true,20000);  // A lost completion releases the player at the deadline.
-    assert(hold.holds(21999) && !hold.holds(22000));
+    assert(hold.holds(22499) && !hold.holds(22500));
     hold.start(true,30000);
     hold.release();
     assert(!hold.holds(30000));
@@ -79,7 +79,7 @@ int main() {
     hold.ended(play,wrap+1460);
     assert(!hold.holds(wrap+1460));
     hold.start(true,3*wrap-500);
-    assert(hold.holds(3*wrap+1499) && !hold.holds(3*wrap+1500));
+    assert(hold.holds(3*wrap+1999) && !hold.holds(3*wrap+2000));
     assert(path(Sound::Notification)=="/tmp/ui/tc002/notification.mp3");
     assert(!canInterrupt(Sound::TimerExpired,Sound::Alarm) && canInterrupt(Sound::TimerExpired,Sound::Silence));
     assert(!canInterrupt(Sound::PomodoroRest,Sound::RestTick));

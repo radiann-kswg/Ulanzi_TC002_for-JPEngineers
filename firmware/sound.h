@@ -76,7 +76,9 @@ class HourlyHold {
     std::atomic<uint32_t> startedAt{0}, current{0};
     uint32_t elapsed(int64_t now) const { return uint32_t(now)-startedAt.load(); }
 public:
-    static constexpr uint32_t earliestEnd=1000, latestEnd=2000;
+    // latestEnd frees the player if the completion never arrives. When a melody first had to
+    // stop another sound, its completion came up to 2.15 s after start() on the clock.
+    static constexpr uint32_t earliestEnd=1000, latestEnd=2500;
     // Returns the number the play's completion and error callbacks pass to ended().
     uint32_t start(bool hourly, int64_t now) {
         const uint32_t play=current.load()+1;

@@ -70,7 +70,9 @@ class StrikeTest(unittest.TestCase):
         for score in builder.HOUR_SCORES.values():
             length=builder.phrase_length(score)
             self.assertLess(earliest,length)
-            self.assertLess(length+.19,latest)
+            # On the clock (f31a2d6) the completion arrived up to 0.58 s after the scored
+            # length, when the melody first had to stop another sound. Keep 0.3 s spare.
+            self.assertLess(length+.58+.3,latest)
 
     def test_packaged_hourly_mp3s_fit_in_80_kib(self):
         assets = builder.ROOT / "firmware/assets/audio"
