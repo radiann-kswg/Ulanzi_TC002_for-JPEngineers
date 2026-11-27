@@ -62,20 +62,34 @@ inline SoundAsset soundAsset(Sound cue) {
 }
 
 // An hourly melody keeps the effect player busy until it really ends. The SDK can report
-// the player idle before it dispatches the MP3's completion. Starting the melody can also
-// stop a shorter sound whose completion then arrives through the melody's newly registered
-// callback. Every hourly clip rings for about 1.75 s, so an end reported within the first
-// second belongs to the sound the melody replaced.
+// the player idle before it dispatches the MP3's completion. Two kinds of stale end report
+// must not release the melody early:
+// - Starting the melody stops the previous sound, and that sound's completion arrives through
+//   the callback the melody has just registered. Every hourly clip rings for about 1.75 s,
+//   so an end reported within the first second belongs to the replaced sound.
+// - A callback registered for an earlier play carries that play's number and is ignored.
 class HourlyHold {
+    // The clock's ARM toolchain has no libatomic, so 64-bit atomics do not link. Keep 32 bits
+    // of the start time: unsigned subtraction still gives the right elapsed time when the
+    // millisecond count wraps every 49.7 days. Only the main thread writes the play number.
     std::atomic<bool> active{false};
-    std::atomic<int64_t> startedAt{0};
+    std::atomic<uint32_t> startedAt{0}, current{0};
+    uint32_t elapsed(int64_t now) const { return uint32_t(now)-startedAt.load(); }
 public:
-    static constexpr int64_t earliestEnd=1000, latestEnd=2000;
-    void start(bool hourly, int64_t now) { startedAt=now; active=hourly; }
+    static constexpr uint32_t earliestEnd=1000, latestEnd=2000;
+    // Returns the number the play's completion and error callbacks pass to ended().
+    uint32_t start(bool hourly, int64_t now) {
+        const uint32_t play=current.load()+1;
+        current=play;
+        startedAt=uint32_t(now);
+        active=hourly;
+        return play;
+    }
     void release() { active=false; }
-    // Called from the player's completion and error callbacks.
-    void ended(int64_t now) { if (now-startedAt.load()>=earliestEnd) active=false; }
-    bool holds(int64_t now) const { return active.load() && now-startedAt.load()<latestEnd; }
+    void ended(uint32_t play, int64_t now) {
+        if (play==current.load() && elapsed(now)>=earliestEnd) active=false;
+    }
+    bool holds(int64_t now) const { return active.load() && elapsed(now)<latestEnd; }
 };
 
 inline Sound preferSound(Sound first, Sound next) {

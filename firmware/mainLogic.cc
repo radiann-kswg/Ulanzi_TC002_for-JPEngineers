@@ -146,19 +146,19 @@ void sound(Sound cue) {
     if (path.empty()) return;
     static const bool debug=readable("/tmp/EasyUI.cfg");
     bool hourly=soundAsset(cue).priority==SoundPriority::Hourly;
-    hourlyHold.start(hourly,nowMs());
+    const uint32_t play=hourlyHold.start(hourly,nowMs());
     if (debug)
         std::ofstream("/tmp/tc002-dev.cue")<<time(nullptr)<<" "<<path<<" 1\n";
     if (debug || hourly) {
-        player.onError([path,hourly](int code,const std::string&){
+        player.onError([path,hourly,play](int code,const std::string&){
             if (debug)
                 std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" error "<<code<<" "<<path<<"\n";
-            if (hourly) hourlyHold.ended(nowMs());
+            if (hourly) hourlyHold.ended(play,nowMs());
         });
-        player.onCompletion([path,hourly]{
+        player.onCompletion([path,hourly,play]{
             if (debug)
                 std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" completed "<<path<<"\n";
-            if (hourly) hourlyHold.ended(nowMs());
+            if (hourly) hourlyHold.ended(play,nowMs());
         });
     }
     int result=player.play(path);
