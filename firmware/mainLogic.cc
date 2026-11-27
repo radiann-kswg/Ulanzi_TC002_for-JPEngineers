@@ -13,6 +13,7 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <fstream>
@@ -126,30 +127,47 @@ base::MediaPlayer& effectPlayer() {
     return player;
 }
 Sound playing=Sound::None;
+std::atomic<bool> hourlyPending{false};
+Millis hourlyDeadline=0;
+bool effectBusy() {
+    // The SDK can clear isPlaying before dispatching the last MP3 completion.
+    // Let that callback finish before a tick replaces it. All hourly clips fit in 1.8 s.
+    return effectPlayer().isPlaying() || (hourlyPending.load() && nowMs()<hourlyDeadline);
+}
 void sound(Sound cue) {
     if (cue==Sound::None) return;
     auto& player=effectPlayer();
     if (cue==Sound::Silence || !app.volume) {
         player.stop();
+        hourlyPending=false;
         playing=Sound::None;
         return;
     }
-    if (player.isPlaying() && !canInterrupt(playing,cue)) return;
+    if (effectBusy() && !canInterrupt(playing,cue)) return;
     auto readable=[](const std::string& path) { return access(path.c_str(),R_OK)==0; };
     auto resource=[](const std::string& rel) { return CONFIGMANAGER->getResFilePath(rel.c_str()); };
     auto path=soundPath(cue,resource,readable);
     if (path.empty()) return;
     static const bool debug=readable("/tmp/EasyUI.cfg");
-    if (debug) {
+    bool hourly=soundAsset(cue).priority==SoundPriority::Hourly;
+    hourlyPending=hourly;
+    if (hourly) hourlyDeadline=nowMs()+2000;
+    if (debug)
         std::ofstream("/tmp/tc002-dev.cue")<<time(nullptr)<<" "<<path<<" 1\n";
-        player.onError([path](int code,const std::string&){
-            std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" error "<<code<<" "<<path<<"\n";
+    if (debug || hourly) {
+        player.onError([path,hourly](int code,const std::string&){
+            if (debug)
+                std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" error "<<code<<" "<<path<<"\n";
+            if (hourly) hourlyPending=false;
         });
-        player.onCompletion([path]{
-            std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" completed "<<path<<"\n";
+        player.onCompletion([path,hourly]{
+            if (debug)
+                std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" completed "<<path<<"\n";
+            if (hourly) hourlyPending=false;
         });
     }
     int result=player.play(path);
+    if (result!=0) hourlyPending=false;
     playing=result==0 ? cue : Sound::None;
     if (result!=0 && debug)
         std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" play "<<result<<" "<<path<<"\n";
@@ -166,7 +184,7 @@ void update() {
     }
     if (!batch.empty()) saveIfChanged();
     pollHardware(now);
-    const bool allowPopup=canInterrupt(playing,Sound::Notification) || !effectPlayer().isPlaying();
+    const bool allowPopup=canInterrupt(playing,Sound::Notification) || !effectBusy();
     auto cue=app.advance(now,utc,allowPopup);
     if (!app.alarmActive) cue=preferSound(cue,button);
     Layout view=screen(app,now,utc);
