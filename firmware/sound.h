@@ -1,4 +1,6 @@
 #pragma once
+#include <atomic>
+#include <cstdint>
 #include <string>
 
 namespace tc {
@@ -58,6 +60,23 @@ inline SoundAsset soundAsset(Sound cue) {
     }
     return {nullptr, nullptr, P::Quiet};
 }
+
+// An hourly melody keeps the effect player busy until it really ends. The SDK can report
+// the player idle before it dispatches the MP3's completion. Starting the melody can also
+// stop a shorter sound whose completion then arrives through the melody's newly registered
+// callback. Every hourly clip rings for about 1.75 s, so an end reported within the first
+// second belongs to the sound the melody replaced.
+class HourlyHold {
+    std::atomic<bool> active{false};
+    std::atomic<int64_t> startedAt{0};
+public:
+    static constexpr int64_t earliestEnd=1000, latestEnd=2000;
+    void start(bool hourly, int64_t now) { startedAt=now; active=hourly; }
+    void release() { active=false; }
+    // Called from the player's completion and error callbacks.
+    void ended(int64_t now) { if (now-startedAt.load()>=earliestEnd) active=false; }
+    bool holds(int64_t now) const { return active.load() && now-startedAt.load()<latestEnd; }
+};
 
 inline Sound preferSound(Sound first, Sound next) {
     return soundAsset(next).priority >= soundAsset(first).priority ? next : first;

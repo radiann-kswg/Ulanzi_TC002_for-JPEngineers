@@ -51,6 +51,21 @@ int main() {
     assert(hourSound(18)==Sound::Hour18 && hourSound(23)==Sound::Hour23);
     assert(path(Sound::Hour11)=="/tmp/ui/tc002/hour11.mp3" && path(Sound::Hour23)=="/tmp/ui/tc002/hour23.mp3");
     assert(path(Sound::Hour1).empty());
+    HourlyHold hold;
+    hold.start(true,10000);
+    assert(hold.holds(10000));
+    hold.ended(10030);  // The completion of the button sound the melody stopped.
+    assert(hold.holds(11700));
+    hold.ended(11760);  // The melody's own completion.
+    assert(!hold.holds(11760));
+    hold.start(true,20000);  // A lost completion releases the player at the deadline.
+    assert(hold.holds(21999) && !hold.holds(22000));
+    hold.start(true,30000);
+    hold.release();
+    assert(!hold.holds(30000));
+    hold.start(true,40000);
+    hold.start(false,40500);  // An alarm replaces the melody.
+    assert(!hold.holds(40500));
     assert(path(Sound::Notification)=="/tmp/ui/tc002/notification.mp3");
     assert(!canInterrupt(Sound::TimerExpired,Sound::Alarm) && canInterrupt(Sound::TimerExpired,Sound::Silence));
     assert(!canInterrupt(Sound::PomodoroRest,Sound::RestTick));

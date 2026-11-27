@@ -13,7 +13,6 @@
 #include <sys/ioctl.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#include <atomic>
 #include <chrono>
 #include <condition_variable>
 #include <fstream>
@@ -127,19 +126,16 @@ base::MediaPlayer& effectPlayer() {
     return player;
 }
 Sound playing=Sound::None;
-std::atomic<bool> hourlyPending{false};
-Millis hourlyDeadline=0;
+HourlyHold hourlyHold;
 bool effectBusy() {
-    // The SDK can clear isPlaying before dispatching the last MP3 completion.
-    // Let that callback finish before a tick replaces it. All hourly clips fit in 1.8 s.
-    return effectPlayer().isPlaying() || (hourlyPending.load() && nowMs()<hourlyDeadline);
+    return effectPlayer().isPlaying() || hourlyHold.holds(nowMs());
 }
 void sound(Sound cue) {
     if (cue==Sound::None) return;
     auto& player=effectPlayer();
     if (cue==Sound::Silence || !app.volume) {
         player.stop();
-        hourlyPending=false;
+        hourlyHold.release();
         playing=Sound::None;
         return;
     }
@@ -150,24 +146,23 @@ void sound(Sound cue) {
     if (path.empty()) return;
     static const bool debug=readable("/tmp/EasyUI.cfg");
     bool hourly=soundAsset(cue).priority==SoundPriority::Hourly;
-    hourlyPending=hourly;
-    if (hourly) hourlyDeadline=nowMs()+2000;
+    hourlyHold.start(hourly,nowMs());
     if (debug)
         std::ofstream("/tmp/tc002-dev.cue")<<time(nullptr)<<" "<<path<<" 1\n";
     if (debug || hourly) {
         player.onError([path,hourly](int code,const std::string&){
             if (debug)
                 std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" error "<<code<<" "<<path<<"\n";
-            if (hourly) hourlyPending=false;
+            if (hourly) hourlyHold.ended(nowMs());
         });
         player.onCompletion([path,hourly]{
             if (debug)
                 std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" completed "<<path<<"\n";
-            if (hourly) hourlyPending=false;
+            if (hourly) hourlyHold.ended(nowMs());
         });
     }
     int result=player.play(path);
-    if (result!=0) hourlyPending=false;
+    if (result!=0) hourlyHold.release();
     playing=result==0 ? cue : Sound::None;
     if (result!=0 && debug)
         std::ofstream("/tmp/tc002-dev.audio")<<time(nullptr)<<" play "<<result<<" "<<path<<"\n";

@@ -1,4 +1,5 @@
 import importlib.util
+import re
 import struct
 import unittest
 from pathlib import Path
@@ -61,6 +62,15 @@ class StrikeTest(unittest.TestCase):
             notes=builder.HOUR_SCORES["hour%02d"%hour]
             self.assertEqual([pitch for _,pitch,_,_ in notes],pitches)
             self.assertEqual([length>notes[1][2] for _,_,length,_ in notes],[True,False,True,True])
+
+    def test_hourly_hold_window_brackets_every_melody(self):
+        # firmware/sound.h ignores end reports before earliestEnd and frees the player at latestEnd.
+        source=(builder.ROOT/"firmware/sound.h").read_text(encoding="utf-8")
+        earliest,latest=(int(v)/1000 for v in re.search(r"earliestEnd=(\d+), latestEnd=(\d+)",source).groups())
+        for score in builder.HOUR_SCORES.values():
+            length=builder.phrase_length(score)
+            self.assertLess(earliest,length)
+            self.assertLess(length+.19,latest)
 
     def test_packaged_hourly_mp3s_fit_in_80_kib(self):
         assets = builder.ROOT / "firmware/assets/audio"
