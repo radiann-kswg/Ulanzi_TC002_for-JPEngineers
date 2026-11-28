@@ -1,8 +1,8 @@
 # TC002 に Wi-Fi で常設する
 
-Windows PC と TC002 を同じ LAN に接続し、時計を USB 電源につなぎます。標準アプリ **1.1.4** で確認した方法です。時計が PC からアプリ用の `update.img` を取得して書き込み、自動再起動します。TF カードは不要です。
+Windows PC と TC002 を同じ LAN に接続し、時計を USB 電源につなぎます。時計が PC からアプリ用の `update.img` を取得して書き込み、自動再起動します。TF カードは不要です。
 
-> **対応する標準アプリ:** この Wi-Fi 常設手順は `appVer` が `1.1.4` の実機で確認済みです。標準アプリ `2.x`（`V1.0.17_2.0.4` を含む）からの導入は未検証です。[Ulanzi 公式フォーラムのユーザー報告](https://bbs.ulanzistudio.com/thread-703-1-1.html)は標準ファームウェアへの更新を確認したもので、この独自アプリとの互換性を示すものではありません。`appVer` が `1.1.4` でない場合は、この手順での書き込みに進まないでください。
+> **実機で確認した標準アプリは `1.1.4` と `2.0.4` です。** `2.0.4` の時計では `GET /getBase` が `appVer` に `2.0.4`、`mcuVer` に `V1.0.17` を返しました。ほかの版での Wi-Fi 常設は未検証です。
 
 ## 1. 時計とイメージを確認する
 
@@ -18,7 +18,7 @@ $device = Invoke-RestMethod -Uri "http://$clockIp/getBase" -TimeoutSec 5
 $device | Select-Object ip, appVer, mcuVer
 ```
 
-表示された `ip` が対象の時計で、`appVer` が `1.1.4` であることを確認します。PC に空のフォルダーを用意し、同じビルドで一時実行を確認した TC002Dev の Image Build 出力 `update.img` だけを入れます。次のコマンドはこのフォルダーを一時的に LAN に公開します。PC の IPv4 は `ipconfig` で確認できます。
+表示された `ip` が対象の時計で、`appVer` が `1.1.4` または `2.0.4` であることを確認します。PC に空のフォルダーを用意し、同じビルドで一時実行を確認した TC002Dev の Image Build 出力 `update.img` だけを入れます。次のコマンドはこのフォルダーを一時的に LAN に公開します。PC の IPv4 は `ipconfig` で確認できます。
 
 ```powershell
 $imageDir = Read-Host 'update.img だけを置いたフォルダーのパス'
@@ -39,7 +39,7 @@ Get-FileHash -Algorithm SHA256 -LiteralPath $image.FullName
 Start-Process -FilePath py -WorkingDirectory $image.DirectoryName -ArgumentList "-3.12 -m http.server $port --bind $pcIp"
 ```
 
-元の PowerShell で次を実行すると書き込みが始まります。時計の給電を維持してください。標準アプリ 1.1.4 は `downloadUrl`、`md5`、`size` を **`app` の中**に受け取ります。MCU の更新項目は送りません。
+元の PowerShell で次を実行すると書き込みが始まります。時計の給電を維持してください。標準アプリ 1.1.4 と 2.0.4 は `downloadUrl`、`md5`、`size` を **`app` の中**に受け取ります。MCU の更新項目は送りません。
 
 ```powershell
 $served = Invoke-WebRequest -UseBasicParsing -Method Head -Uri $url -TimeoutSec 5 -ErrorAction Stop
@@ -85,6 +85,16 @@ try {
 `running` とハッシュの一致を確認したら、配信ウィンドウで **Ctrl+C** を押して閉じます。時計を通常再起動しても独自時計が起動し、「接続と表示」で起動した PC ブリッジから天気や開発情報を再び受信できます。
 
 標準アプリに戻す場合、Ulanzi は USB-C 横の復旧ボタンを押したまま電源を入れる手順を案内しています。[TC002 の公式復旧案内](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/README_EN.md)・[標準アプリの OTA API](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/protocol/Ulanzi_TC002_protocol-http-mqtt_CN.md)
+
+<a id="stock-204-test"></a>
+
+### 純正 2.0.4 での実機試験（2026年11月28日）
+
+同じ TC002 を Ulanzi Studio で純正 1.0.5 から 2.0.4 に更新しました。まず Wi-Fi ADB で曜日配色入りのビルドを一時起動し、秒針・ボタン・モード切替・ノブの音を確認しました。通常再起動すると純正 2.0.4 に戻りました。
+
+続いて、純正 2.0.4 の `POST /update` が `OTA update started` を返し、時計が 1,630,780 バイトのイメージを取得しました。更新時の自動再起動と次の通常再起動の両方で、常設ライブラリが一時試験したビルドと SHA-256 で一致しました。2.0.4 の `/res/ui/audio/` には `Alarm.mp3` を含む9点があり、全点を常設後に読み戻して照合しました。
+
+この時計の内蔵復旧イメージで戻った版は 1.0.5 でした。2.0.4 に直接戻すために、独自アプリの導入前に純正 2.0.4 のアプリ領域を PC に保存し、FlyThings の更新形式で別に保管しました。
 
 <a id="resident-ota"></a>
 

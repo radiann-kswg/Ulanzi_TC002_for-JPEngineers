@@ -94,9 +94,9 @@ Z21 ツールチェーンと SDK がすでに揃っている PC では、設定�
 
 ## Wi-Fi で常設する
 
-TC002 の標準アプリ 1.1.4 では、PC 上の `update.img` を同じ LAN 経由で時計に書き込めます。TF カードは不要です。標準アプリから一時実行を始めた場合は、通常再起動で標準アプリに戻ってから更新します。設定アプリの「OS セットアップ」→「Wi-Fi で常設する」からも手順を開けます。[Windows での更新と再起動後の確認](docs/wifi-update.md)
+TC002 の標準アプリ 1.1.4 と 2.0.4 では、PC 上の `update.img` を同じ LAN 経由で時計に書き込めます。TF カードは不要です。標準アプリから一時実行を始めた場合は、通常再起動で標準アプリに戻ってから更新します。設定アプリの「OS セットアップ」→「Wi-Fi で常設する」からも手順を開けます。[Windows での更新と再起動後の確認](docs/wifi-update.md)
 
-標準アプリ 2.x は、購入後に Ulanzi Studio 経由で更新できる純正ファームウェアの版です。標準アプリ 2.x からこの独自アプリを Wi-Fi で常設する手順は未検証です。[Ulanzi の更新案内](https://bbs.ulanzistudio.com/thread-705-1-1.html)・[同じ TC002 を 1.1.4 から 2.0.4 に更新した利用者の記録](https://bbs.ulanzistudio.com/thread-703-1-1.html)
+標準アプリ 2.x は購入後に Ulanzi Studio 経由で更新できます。このプロジェクトでは 2.0.4（MCU V1.0.17）の実機で、曜日配色入りの独自時計の一時起動、純正への復帰、Wi-Fi 常設後の通常再起動を確認しました。[Ulanzi の更新案内](https://bbs.ulanzistudio.com/thread-705-1-1.html)・[実機試験の記録](docs/wifi-update.md#stock-204-test)
 
 すでに独自時計を常設している場合は、Wi-Fi ADB と FlyThings の更新機能で次のイメージを適用できます。標準アプリに戻さず実機で更新した手順を掲載しています。[独自時計からの更新](docs/wifi-update.md#resident-ota)
 
@@ -137,7 +137,7 @@ $deviceIp = Read-Host "時計の IPv4 アドレス"
 | --- | --- |
 | [機能の全体像](docs/features.md) | 構成図と、時計・PC ブリッジ・設定アプリの全機能の一覧 |
 | [スマートクロックの使い方](docs/operation.md) | ボタン操作、画面の読み方、PC ブリッジの設定、テスト方法 |
-| [Wi-Fi で常設する](docs/wifi-update.md) | 標準アプリ 1.1.4 からの書き込みと、独自時計からの更新 |
+| [Wi-Fi で常設する](docs/wifi-update.md) | 標準アプリ 1.1.4・2.0.4 からの書き込みと、独自時計からの更新 |
 | [機器側アプリの要件と画面構成](docs/requirements.md) | 時計の要件定義と受け入れ時の確認例 |
 | [Windows設定アプリの要件](docs/studio-requirements.md) | 設定アプリの機能と完了条件 |
 | [第三者素材の告知](THIRD_PARTY_NOTICES.md) | 書体・地図・祝日データ・効果音の出典と条件 |
