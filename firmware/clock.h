@@ -45,6 +45,31 @@ struct Clock {
     int lastDial=noDial;
     bool wasRest[2]={false,false};
     bool alarmActive=false;
+    WeekdayColoring weekdayColoring=WeekdayColoring::AllHolidays;
+
+    static int dateKey(const std::tm& date) {
+        return (date.tm_year+1900)*10000+(date.tm_mon+1)*100+date.tm_mday;
+    }
+    std::vector<const Holiday*> holidaysAt(int date,int offset) const {
+        std::vector<const Holiday*> result;
+        for (const auto& holiday:feed.holidays)
+            if (holiday.offset==offset && holiday.date==date) result.push_back(&holiday);
+        return result;
+    }
+    bool japanHoliday(time_t utc) const {
+        return !holidaysAt(dateKey(localFields(utc)),540).empty();
+    }
+    std::vector<std::string> calendarHolidays(time_t utc) const {
+        std::vector<std::string> result;
+        const int japan=dateKey(localFields(utc));
+        const int offset=world.offset();
+        const int abroad=dateKey(localFields(utc,offset));
+        for (const auto* holiday:holidaysAt(japan,540))
+            result.push_back(holiday->region+" "+holiday->name);
+        if (offset!=540) for (const auto* holiday:holidaysAt(abroad,offset))
+            result.push_back(holiday->region+" "+holiday->name);
+        return result;
+    }
 
     void intervalKey(Interval& cycle,bool isBusy,Action a,Millis now) {
         if (!cycle.elapsed.running && cycle.elapsed.value(now)==0) {
@@ -106,7 +131,7 @@ struct Clock {
         int c=nav.category,p=nav.page[c];
         if (p==7) return 2;
         if (c<3 && p==6 && feed.pages[c][p].empty()) return 2;
-        if (c==3 && p==2) return 3;
+        if (c==3 && p==2) return 3+calendarHolidays(checkedAt).size();
         if (c==1 || c==2) {
             if (p==0 || p==1) return std::max<size_t>(1,scheduleRows(c,p,checkedAt).size());
         }

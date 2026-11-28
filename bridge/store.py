@@ -8,6 +8,7 @@ from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from .usage import quota_windows, reset_epoch
+from .weekday_colors import validate as validate_weekday_coloring
 
 JST = timezone(timedelta(hours=9))
 ROOT = Path(__file__).resolve().parents[1]
@@ -85,9 +86,11 @@ def position(place):
         raise ValueError("invalid location")
     return lat, lon, clean(place["name"], 40)
 
-def snapshot(db, place, now):
+def snapshot(db, place, now, weekday_coloring="all_holidays"):
+    validate_weekday_coloring(weekday_coloring)
     lat, lon, name = position(place)
-    lines = ["TC002/1", f"at\t{now}", f"place\t{lat}\t{lon}\t{name}"]
+    lines = ["TC002/1", f"at\t{now}", f"place\t{lat}\t{lon}\t{name}",
+             f"weekday\t{clean(weekday_coloring, 32)}"]
     pages = defaultdict(list)
     weather_kinds=[]
     notices = {uid:(stamp,uid,detail) for uid,stamp,detail in db.execute(
@@ -98,6 +101,7 @@ def snapshot(db, place, now):
     coverage = defaultdict(list)
     scope_sources=defaultdict(set)
     schedule_scope = {}
+    holiday_rows = set()
     inbox=db.execute("SELECT stamp,ttl,failed FROM sources WHERE name='github.alerts'").fetchone()
     live_inbox=inbox and not inbox[2] and now-inbox[0]<=inbox[1]
     for source, stamp, ttl, failure, raw in db.execute(
@@ -105,6 +109,14 @@ def snapshot(db, place, now):
         data = json.loads(raw)
         stale = bool(failure or now - stamp > ttl or stamp > now + 90)
         manual = source.startswith("manual")
+        for holiday in data.get("holidays", []):
+            if (isinstance(holiday, dict) and isinstance(holiday.get("date"), str) and
+                    len(holiday["date"]) == 10 and holiday["date"][4:5] == "-" and
+                    holiday["date"][7:8] == "-" and isinstance(holiday.get("offset"), int) and
+                    -720 <= holiday["offset"] <= 840):
+                holiday_rows.add((holiday["date"], holiday["offset"],
+                                  clean(holiday.get("region", ""), 12),
+                                  clean(holiday.get("name", ""), 128)))
         if source=="github.list" and not live_inbox:
             for c,p,label in data.get("repoAlerts",[]):
                 pages[c,p].append((stamp,stale,label))
@@ -204,6 +216,8 @@ def snapshot(db, place, now):
                            title.encode(),suffix))
     for due, uid, label in sorted(notices.values(),key=lambda event:event[0])[:128]:
         lines.append(f"event\t{due}\t{clean(uid,72)}\t{clean(label,256)}")
+    for day, offset, region, label in sorted(holiday_rows)[:2048]:
+        lines.append(f"holiday\t{day}\t{offset}\t{region}\t{label}")
     header=("\n".join(lines)+"\n").encode()
     budget=(262144-len(header)-4-sum(len(prefix)+len(suffix)+1 for prefix,_,suffix in labels))//max(1,len(labels))
     wire=bytearray(header)

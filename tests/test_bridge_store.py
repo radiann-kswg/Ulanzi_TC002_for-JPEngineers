@@ -17,6 +17,26 @@ class StoreTest(unittest.TestCase):
         self.assertIn("old\t0\t1\t1000\t0 件 END\n",data)
         self.assertIn("追加 取得不可",data)
 
+    def test_weekday_setting_and_holidays_reach_device(self):
+        store.save(self.db,"holidays",{"holidays":[
+            {"date":"2026-11-23","offset":540,"region":"日本","name":"勤労感謝の日"},
+            {"date":"2026-11-26","offset":-300,"region":"US","name":"Thanksgiving Day"},
+        ]},1000,86400)
+        data=store.snapshot(self.db,weather.AKO,1000,"weekend_holiday").decode()
+        self.assertIn("weekday\tweekend_holiday\n",data)
+        self.assertIn("holiday\t2026-11-23\t540\t日本\t勤労感謝の日\n",data)
+        self.assertIn("holiday\t2026-11-26\t-300\tUS\tThanksgiving Day\n",data)
+        with self.assertRaisesRegex(ValueError,"weekday"):
+            store.snapshot(self.db,weather.AKO,1000,"unknown")
+
+    def test_new_year_holiday_data_is_not_truncated_at_512_rows(self):
+        holidays=[{"date":"2027-01-01","offset":offset,"region":"ZZ","name":f"Holiday {n}-{m}"}
+                  for n,offset in enumerate(range(-720,841,15)) for m in range(6)]
+        store.save(self.db,"holidays",{"holidays":holidays},1000,86400)
+        lines=[line for line in store.snapshot(self.db,weather.AKO,1000).decode().splitlines()
+               if line.startswith("holiday\t")]
+        self.assertGreater(len(lines),512)
+
     def test_full_multibyte_snapshot_fits_the_receiver(self):
         rows=[[c,p,"島⚓🚢"*25] for c in range(4) for p in range(8) for _ in range(105)]
         store.save(self.db,"large",{"rows":rows},1000,90)

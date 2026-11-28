@@ -13,7 +13,7 @@ import time
 import uuid
 from contextlib import contextmanager
 
-from . import claude_desktop, desktop, github, manual, schedules, store, weather
+from . import claude_desktop, desktop, github, holiday_calendar, manual, schedules, store, weather
 from .config import CONFIG, adb_command, settings, update
 from .usage import claude_statusline
 
@@ -54,6 +54,7 @@ def jobs(conf,db):
     tasks={
         "weather":(900,lambda old,t:weather.observe(conf["place"])),
         "weather.air":(1800,lambda old,t:weather.air(conf["place"])),
+        "holidays":(21600,lambda old,t:holiday_calendar.collect(t)),
         "codex.schedules":(120,lambda old,t:schedules.codex(t,conf.get("timezone","Asia/Tokyo"))),
         "codex.sessions":(30,lambda old,t:asyncio.run(desktop.codex_sessions(t))),
         "codex.limits":(300,lambda old,t:asyncio.run(desktop.codex_limits())),
@@ -101,7 +102,7 @@ def serve(db,conf,device,once,out,reload_config=lambda:False):
     pushed=0
     states={}
     def push(now):
-        wire=store.snapshot(db,conf["place"],now)
+        wire=store.snapshot(db,conf["place"],now,conf["weekdayColoring"])
         if out: Path(out).write_bytes(wire)
         if device: publish(adb_command(conf),device,wire)
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(tasks)) as pool:

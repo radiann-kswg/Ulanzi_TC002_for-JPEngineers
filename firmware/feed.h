@@ -10,6 +10,15 @@
 namespace tc {
 struct Row { int64_t stamp; std::string text; bool stale; };
 struct Notice { int64_t due; std::string id, text; };
+enum class WeekdayColoring { Sunday, SundayHoliday, WeekendHoliday, AllWeekdays, AllHolidays };
+struct Holiday { int date, offset; std::string region, name; };
+inline bool weekdayColoring(const std::string& value,WeekdayColoring& result) {
+    static const char* names[]={"sunday","sunday_holiday","weekend_holiday","all_weekdays","all_holidays"};
+    for (int i=0;i<5;++i) if (value==names[i]) {
+        result=static_cast<WeekdayColoring>(i); return true;
+    }
+    return false;
+}
 struct Feed {
     int64_t generated = 0;
     bool hasLocation = false;
@@ -18,6 +27,8 @@ struct Feed {
     std::array<std::array<std::vector<Row>,8>,4> pages;
     std::vector<Notice> events;
     std::vector<std::string> weatherKinds;
+    std::vector<Holiday> holidays;
+    WeekdayColoring weekday=WeekdayColoring::AllHolidays;
 };
 inline bool integer(const std::string& s,int64_t& value) {
     char* end=nullptr; errno=0;
@@ -43,10 +54,17 @@ inline bool readFeed(std::istream& file,Feed& result) {
             f.push_back(line.substr(start,tab-start)); start=tab+1;
         }
         f.push_back(line.substr(start));
-        int64_t c=0,p=0,stamp=0;
+        int64_t c=0,p=0,stamp=0,offset=0;
         if (f[0]=="at" && f.size()==2 && integer(f[1],stamp) && stamp>0) next.generated=stamp;
         else if (f[0]=="place" && f.size()==4 && coordinate(f[1],90,next.latitude)
                  && coordinate(f[2],180,next.longitude)) { next.place=f[3]; next.hasLocation=true; }
+        else if (f[0]=="weekday" && f.size()==2 && weekdayColoring(f[1],next.weekday)) {}
+        else if (f[0]=="holiday" && f.size()==5 && f[1].size()==10 && f[1][4]=='-' && f[1][7]=='-' &&
+                 integer(f[1].substr(0,4)+f[1].substr(5,2)+f[1].substr(8,2),stamp) &&
+                 stamp>=20000101 && stamp<=21991231 && integer(f[2],offset) && offset>=-720 && offset<=840 &&
+                 !f[3].empty() && f[3].size()<=12 && !f[4].empty() && f[4].size()<=512 &&
+                 next.holidays.size()<2048)
+            next.holidays.push_back({int(stamp),int(offset),f[3],f[4]});
         else if ((f[0]=="row" || f[0]=="old") && (f.size()==5 || f.size()==6) && integer(f[1],c) && c>=0 && c<4
                  && integer(f[2],p) && p>=0 && p<8 && integer(f[3],stamp) && stamp>=0) {
             if (next.pages[c][p].size()>=100) return false;

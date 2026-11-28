@@ -6,17 +6,28 @@ int main() {
     assert(screen(clock,0,600).main=="時刻待ち");
     time_t utc=1704034800;
     assert(screen(clock,0,utc).main=="00:00:00");
+    const int fillRed[]={0x99,0xFF,0x99,0x00,0xFF,0x33,0xFF};
+    const int edgeRed[]={0x66,0x99,0x33,0x00,0x99,0x00,0x99};
     for (int d=0;d<7;++d) {
         auto view=screen(clock,0,utc+d*86400);
-        assert(view.weekday==d);
+        assert(view.weekday==d && view.weekdayStyle==d);
         Glyph chars[]={{'?',4,1,{0},0},{U'月',10,9,{256},0}};
         Font font{chars,2};
         auto f=paint(view,font,font,font,0);
-        assert(f.pixels[(2*52+51)*3]==(d==0?0x51:0));
+        assert(f.pixels[(2*52+51)*3]==(d==0?0x99:0));
         for (int n=0;n<7;++n)
             for (int y=14;y<16;++y)
-                assert(f.pixels[(y*52+2+7*n)*3]==(n==d?0x51:0x17));
+                assert(f.pixels[(y*52+2+7*n)*3]==(n==d?fillRed[n]:edgeRed[n]));
     }
+    assert(weekdayStyle(0,false,WeekdayColoring::Sunday)==-1);
+    assert(weekdayStyle(6,false,WeekdayColoring::Sunday)==6);
+    assert(weekdayStyle(2,true,WeekdayColoring::SundayHoliday)==6);
+    assert(weekdayStyle(5,false,WeekdayColoring::WeekendHoliday)==5);
+    assert(weekdayStyle(2,true,WeekdayColoring::AllWeekdays)==2);
+    clock.feed.holidays.push_back({20240101,540,"日本","元日"});
+    assert(screen(clock,0,utc).weekdayStyle==6);
+    clock.weekdayColoring=WeekdayColoring::AllWeekdays;
+    assert(screen(clock,0,utc).weekdayStyle==0);
     clock.nav.page[3]=0;
     assert(screen(clock,0,utc+12).main=="00:00:12" && screen(clock,0,utc).sub=="+9 STD");
     clock.command(Action::Center,100);

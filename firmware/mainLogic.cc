@@ -64,7 +64,8 @@ std::string preferences() {
     std::ostringstream s;
     s<<app.world.base<<' '<<app.world.summer<<' '<<app.volume<<' '<<app.timer.minutes<<' '
      <<app.pomo.focus<<' '<<app.pomo.rest<<' '<<app.busy.focus<<' '<<app.busy.rest<<' '
-     <<app.feed.hasLocation<<' '<<std::setprecision(10)<<app.feed.latitude<<' '<<app.feed.longitude;
+     <<app.feed.hasLocation<<' '<<std::setprecision(10)<<app.feed.latitude<<' '<<app.feed.longitude<<' '
+     <<static_cast<int>(app.weekdayColoring);
     return s.str();
 }
 void loadPreferences() {
@@ -78,6 +79,9 @@ void loadPreferences() {
         app.busy.focus=clamp(bf,1,60); app.busy.rest=clamp(br,1,60);
         app.feed.hasLocation=has && std::abs(lat)<=90 && std::abs(lon)<=180;
         app.feed.latitude=lat; app.feed.longitude=lon;
+        int coloring;
+        if (in>>coloring && coloring>=0 && coloring<=4)
+            app.weekdayColoring=static_cast<WeekdayColoring>(coloring);
     }
     savedValues=preferences();
 }
@@ -111,6 +115,7 @@ void pollHardware(Millis now) {
                 timespec utc{static_cast<time_t>(app.feed.generated), 0};
                 clock_settime(CLOCK_REALTIME, &utc);
             }
+            app.weekdayColoring=app.feed.weekday;
             saveIfChanged();
         }
     }
@@ -189,6 +194,8 @@ void update() {
     bool same=!previous.empty() && entered==app.entered && view.main==last.main && view.sub==last.sub &&
         view.service==last.service && view.servicePage==last.servicePage && view.menu==last.menu && view.popup==last.popup &&
         view.stampLine==last.stampLine && view.gauge==last.gauge && view.weekday==last.weekday &&
+        view.weekdayStyle==last.weekdayStyle && view.weekdayMode==last.weekdayMode &&
+        view.calendarHoliday==last.calendarHoliday &&
         view.color==last.color && view.compact==last.compact && view.icon==last.icon &&
         view.ready==last.ready && view.paused==last.paused && view.weatherKind==last.weatherKind &&
         view.automatic==last.automatic && view.calendarPanel==last.calendarPanel && view.moonTenths==last.moonTenths;

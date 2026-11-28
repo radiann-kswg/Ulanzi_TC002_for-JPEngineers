@@ -91,13 +91,18 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
     if (c==3 && p==1) {
         v.main=clockText(local,true);
         v.weekday=(local.tm_wday+6)%7; // Monday first, like the stock weekStart=1 setting.
+        v.weekdayStyle=weekdayStyle(v.weekday,clock.japanHoliday(utc),clock.weekdayColoring);
+        v.weekdayMode=static_cast<int>(clock.weekdayColoring);
         return v;
     }
     if (c==3 && p==2) {
-        v.calendarPanel=int(clock.selection%3);
+        auto holidays=clock.calendarHolidays(utc);
+        v.calendarPanel=int(clock.selection%(3+holidays.size()));
         v.moonTenths=int(lround(moonAge(utc)*10));
         char buf[32];
-        if (!v.calendarPanel) {
+        if (v.calendarPanel>=3) {
+            v.main=holidays[v.calendarPanel-3]; v.calendarHoliday=true;
+        } else if (!v.calendarPanel) {
             snprintf(buf,sizeof buf,"%d/%d",local.tm_mon+1,local.tm_mday); v.main=buf;
         } else {
             SunTimes sun=clock.feed.hasLocation?sunTimes(local,clock.feed.latitude,clock.feed.longitude):SunTimes{-1,-1};
@@ -170,6 +175,14 @@ inline Frame paint(const Layout& view,const Font& denki,const Font& nega,const F
         return frame;
     }
     if (view.calendarPanel>=0) {
+        if (view.calendarHoliday) {
+            TextRun holiday(view.main,denki,maru);
+            int end=holiday.readTime(52);
+            frame.advanceAfter=std::max(4500,end);
+            holiday.draw(frame,2,ivory,std::min<Millis>(elapsed,end-1));
+            if (elapsed>=end-1) frame.refreshAfter=std::numeric_limits<int>::max();
+            return frame;
+        }
         moonDisk(frame,view.moonTenths/10.);
         TextRun(view.sub,nega,denki).draw(frame,8,ivory,0,33,true);
         if (view.calendarPanel) {
@@ -238,10 +251,22 @@ inline Frame paint(const Layout& view,const Font& denki,const Font& nega,const F
     if (view.gauge>=0) frame.bar(15,view.gauge,view.color);
     if (view.weekday>=0) {
         static const uint32_t kanji[]={U'月',U'火',U'水',U'木',U'金',U'土',U'日'};
+        static const uint32_t fill[]={0x9933FF,0xFF6600,0x99CCCC,0x00CC99,0xFFFF99,0x3366CC,0xFF0033};
+        static const uint32_t edge[]={0x660099,0x993300,0x336666,0x006633,0x996600,0x003366,0x990000};
         const Glyph* dayGlyph=denki.find(kanji[view.weekday]);
-        if (dayGlyph) frame.glyph(*dayGlyph,52-dayGlyph->width,2,green);
+        uint32_t ink=view.weekdayStyle>=0?fill[view.weekdayStyle]:green;
+        uint32_t outline=view.weekdayStyle>=0?edge[view.weekdayStyle]:0x14563D;
+        if (dayGlyph) {
+            int x=52-dayGlyph->width,y=2;
+            static const int dx[]={-1,1,0,0},dy[]={0,0,-1,1};
+            for (int i=0;i<4;++i)
+                frame.mask(dayGlyph->rows,dayGlyph->width,x+dx[i],y+dy[i],outline);
+            frame.glyph(*dayGlyph,x,y,ink);
+        }
         for (int day=0;day<7;++day) {
-            uint32_t color=day==view.weekday?green:0x172822;
+            int style=view.weekdayMode>=0?weekdayStyle(
+                day,false,static_cast<WeekdayColoring>(view.weekdayMode)):-1;
+            uint32_t color=day==view.weekday?ink:(style>=0?edge[style]:0x172822);
             for (int x=2+day*7;x<2+day*7+6;++x)
                 for (int y=14;y<=15;++y) frame.pixel(x,y,color);
         }

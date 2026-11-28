@@ -20,15 +20,18 @@ class SettingsTests(unittest.TestCase):
         self.addCleanup(work.cleanup)
         self.path = Path(work.name) / "bridge" / "local.json"
         self.empty = Fields.from_document({})
+        self.assertEqual(self.empty.weekday_coloring, "all_holidays")
 
     def test_first_run_and_bridge_round_trip(self):
         self.assertEqual(config.read(self.path), {})
         self.assertFalse(self.path.parent.exists())
         fields = replace(self.empty, device="192.0.2.40", name="小笠原村", lat="27.09",
-                         lon="142.19", repos="example/widget, example/widget test/other")
+                         lon="142.19", repos="example/widget, example/widget test/other",
+                         weekday_coloring="weekend_holiday")
         normalized = save(self.path, self.empty, fields)
         self.assertEqual(config.settings(self.path)["place"]["name"], "小笠原村")
         self.assertEqual(config.settings(self.path)["repos"], ["example/widget", "test/other"])
+        self.assertEqual(config.settings(self.path)["weekdayColoring"], "weekend_holiday")
         self.assertEqual(normalized, Fields.from_document(config.read(self.path)))
 
     def test_other_settings_preserved_and_edit_conflicts_detected(self):
@@ -65,7 +68,7 @@ class SettingsTests(unittest.TestCase):
         original = self.path.read_bytes()
         for bad in ({"device": "224.0.0.1"}, {"device": "0.0.0.0"}, {"device": "not a host"},
                     {"lat": "nan"}, {"lon": "181"}, {"name": " "}, {"repos": "../foo"},
-                    {"owner": "../foo"}):
+                    {"owner": "../foo"}, {"weekday_coloring": "rainbow"}):
             with self.subTest(bad=bad), self.assertRaises(ValueError):
                 save(self.path, self.empty, replace(self.empty, **bad))
             self.assertEqual(self.path.read_bytes(), original)

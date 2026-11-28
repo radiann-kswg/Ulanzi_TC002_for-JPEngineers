@@ -6,10 +6,13 @@ from pathlib import Path
 import tempfile
 
 from . import github, store, weather
+from . import weekday_colors
 
 
 CONFIG = Path(__file__).with_name("local.json")
 STUDIO_PATHS = CONFIG.parents[1] / "build/studio-paths.json"
+WEEKDAY_COLORINGS = weekday_colors.VALUES
+DEFAULT_WEEKDAY_COLORING = weekday_colors.DEFAULT
 
 
 def adb_command(document, selected_ide=None, *, paths=STUDIO_PATHS):
@@ -46,6 +49,8 @@ def settings(path):
     document.setdefault("place", dict(weather.AKO))
     store.position(document["place"])
     document["repos"] = list(dict.fromkeys(github.repository(r) for r in document.get("repos", [])))
+    document.setdefault("weekdayColoring", DEFAULT_WEEKDAY_COLORING)
+    weekday_colors.validate(document["weekdayColoring"])
     return document
 
 

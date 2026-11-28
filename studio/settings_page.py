@@ -11,6 +11,14 @@ from .setup import device_target
 
 
 class SettingsPage(ttk.Frame):
+    WEEKDAY_OPTIONS = (
+        ("sunday", "日曜のみ変更"),
+        ("sunday_holiday", "日曜・祝日のみ変更"),
+        ("weekend_holiday", "土曜・日曜・祝日のみ変更"),
+        ("all_weekdays", "すべての曜日を変更（祝日を除く）"),
+        ("all_holidays", "すべての曜日を変更（祝日を含む）"),
+    )
+
     def __init__(self, parent, config_path, status):
         super().__init__(parent)
         self.path = Path(config_path)
@@ -56,8 +64,20 @@ class SettingsPage(ttk.Frame):
         self.field(github, 1, 1, "個別のリポジトリ", "repos", padx=(8, 0))
         self.hint(github, 3, "所有者を指定すると、その所有者の全リポジトリを監視します。個別に指定するときは所有者を空欄にし、owner/name をコンマで区切ります。")
 
+        appearance = self.card("時計の曜日配色")
+        appearance.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(12, 0))
+        appearance.columnconfigure(0, weight=1)
+        ttk.Label(appearance, text="色を変える曜日", style="Card.TLabel").grid(
+            row=1, column=0, sticky="w", pady=(8, 3))
+        self.weekday_labels = {code: label for code, label in self.WEEKDAY_OPTIONS}
+        self.weekday_codes = {label: code for code, label in self.WEEKDAY_OPTIONS}
+        self.weekday_choice = tk.StringVar(self)
+        ttk.Combobox(appearance, state="readonly", textvariable=self.weekday_choice,
+                     values=tuple(self.weekday_codes), width=34).grid(row=2, column=0, sticky="ew")
+        self.hint(appearance, 3, "祝日は日本の祝日です。祝日を含む設定では、実際の曜日より日曜の赤系配色を優先します。")
+
         actions = ttk.Frame(self)
-        actions.grid(row=2, column=0, columnspan=2, sticky="ew", pady=(10, 16))
+        actions.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(10, 16))
         actions.columnconfigure(0, weight=1)
         ttk.Label(actions, textvariable=self.notice).grid(row=0, column=0, sticky="w")
         reload_button = ttk.Button(actions, text="再読み込み", command=self.reload)
@@ -66,7 +86,7 @@ class SettingsPage(ttk.Frame):
         self.save_button.grid(row=0, column=2)
 
         controls = self.card("PC ブリッジ")
-        controls.grid(row=3, column=0, columnspan=2, sticky="ew")
+        controls.grid(row=4, column=0, columnspan=2, sticky="ew")
         controls.columnconfigure(0, weight=1)
         self.hint(controls, 1, "PC が取得した天気や開発情報を時計に送ります。")
         buttons = ttk.Frame(controls, style="Card.TFrame")
@@ -80,6 +100,7 @@ class SettingsPage(ttk.Frame):
 
         for variable in self.variables.values():
             variable.trace_add("write", self.changed)
+        self.weekday_choice.trace_add("write", self.changed)
         self.load()
 
     def card(self, title, parent=None):
@@ -100,7 +121,10 @@ class SettingsPage(ttk.Frame):
         label.bind("<Configure>", lambda event: label.configure(wraplength=max(80, event.width - 4)))
 
     def values(self):
-        return Fields(**{key: variable.get() for key, variable in self.variables.items()})
+        values = {key: variable.get() for key, variable in self.variables.items()}
+        values["weekday_coloring"] = self.weekday_codes.get(
+            self.weekday_choice.get(), values["weekday_coloring"])
+        return Fields(**values)
 
     @property
     def dirty(self):
@@ -112,7 +136,10 @@ class SettingsPage(ttk.Frame):
     def populate(self, fields):
         self.baseline = fields
         for key, variable in self.variables.items():
-            variable.set(getattr(fields, key))
+            if key != "weekday_coloring":
+                variable.set(getattr(fields, key))
+        self.variables["weekday_coloring"].set(fields.weekday_coloring)
+        self.weekday_choice.set(self.weekday_labels[fields.weekday_coloring])
         self.saved_device.set(fields.device)
 
     def load(self):

@@ -15,6 +15,7 @@ class Fields:
     owner: str
     repos: str
     adb: str
+    weekday_coloring: str
 
     @classmethod
     def from_document(cls, document):
@@ -31,8 +32,11 @@ class Fields:
             if not isinstance(value, str):
                 raise ValueError(f"{key} には文字列を指定してください。")
             return value
+        coloring = document.get("weekdayColoring", config.DEFAULT_WEEKDAY_COLORING)
+        if coloring not in config.WEEKDAY_COLORINGS:
+            raise ValueError("曜日配色の設定を確認してください。")
         return cls(optional("device"), str(place["name"]), str(place["lat"]), str(place["lon"]),
-                   optional("owner"), ", ".join(repos), optional("adb"))
+                   optional("owner"), ", ".join(repos), optional("adb"), coloring)
 
     def apply(self, document):
         updated = document.copy()
@@ -65,6 +69,9 @@ class Fields:
                 updated[key] = value
             else:
                 updated.pop(key, None)
+        if self.weekday_coloring not in config.WEEKDAY_COLORINGS:
+            raise ValueError("曜日配色の設定を確認してください。")
+        updated["weekdayColoring"] = self.weekday_coloring
         return updated
 
 
