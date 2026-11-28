@@ -7,7 +7,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import time
-from device_audio import STOCK_FILES, find_encoder, trial_cues
+from device_audio import OPTIONAL_STOCK_FILES, STOCK_FILES, find_encoder, trial_cues
 
 ROOT = Path(__file__).resolve().parents[1]
 PROJECT = ROOT / "build/TC002Dev"
@@ -85,7 +85,7 @@ def debug(ip, adb, restore, audio_only=False):
             if shell("mkdir -p /tmp/ui/audio && echo READY") != "READY":
                 raise RuntimeError("Cannot prepare temporary stock audio.")
             publish = []
-            for name in STOCK_FILES:
+            for name in STOCK_FILES + OPTIONAL_STOCK_FILES:
                 path = personal / name
                 remote = "/tmp/ui/audio/" + name
                 if path.is_file():

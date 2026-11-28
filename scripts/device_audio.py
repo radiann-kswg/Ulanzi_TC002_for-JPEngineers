@@ -13,6 +13,7 @@ CUES = ("tick", "rotate", "button", "enter", "minute",
         "notification", "rest", "resume", "alarm")
 STOCK_FILES = ("Btn.mp3", "Clock.mp3", "Enter.mp3", "Rotate.mp3", "Rotate.wav",
                "SlowClock.mp3", "StopWatch.mp3", "Tip.mp3")
+OPTIONAL_STOCK_FILES = ("Alarm.mp3",)  # Present on stock 2.0.4.
 
 def render_minute(tick):
     peak=max(map(abs,tick))

@@ -7,7 +7,7 @@ import subprocess
 import tempfile
 
 from bridge.config import adb_command, read, update
-from scripts.device_audio import STOCK_FILES
+from scripts.device_audio import OPTIONAL_STOCK_FILES, STOCK_FILES
 from .runner import console_python
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -112,7 +112,7 @@ def copy_stock_sounds(source):
     if not (PROJECT / ".project").is_file():
         raise ValueError("先に「プロジェクトを生成」を実行してください。")
     source = Path(source)
-    available = [name for name in STOCK_FILES if (source / name).is_file()]
+    available = [name for name in STOCK_FILES + OPTIONAL_STOCK_FILES if (source / name).is_file()]
     if not available:
         raise RuntimeError("標準音源が見つかりません。同じ時計のバックアップの ui/audio を選んでください。")
     folder = PROJECT / "resources/audio"

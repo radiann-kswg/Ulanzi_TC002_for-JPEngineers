@@ -25,8 +25,13 @@ class SetupTest(unittest.TestCase):
                         (folder / name).write_bytes(name.encode())
                 return setup.subprocess.CompletedProcess(args, 0)
             with patch.object(setup.subprocess, "run", side_effect=transfer):
-                setup.import_stock_sounds("192.0.2.1", "adb")
+                report = setup.import_stock_sounds("192.0.2.1", "adb")
+            self.assertNotIn("Alarm.mp3", report)
             self.assertCountEqual([p.name for p in dest.iterdir()], names)
+            with tempfile.TemporaryDirectory() as stock2:
+                (Path(stock2) / "Alarm.mp3").write_bytes(b"stock 2.0.4 alarm")
+                setup.copy_stock_sounds(stock2)
+            self.assertEqual((dest / "Alarm.mp3").read_bytes(), b"stock 2.0.4 alarm")
             with tempfile.TemporaryDirectory() as backup:
                 source = Path(backup)
                 (source / "Clock.mp3").write_bytes(b"new tick")
