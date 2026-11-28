@@ -4,9 +4,6 @@ from datetime import datetime, timezone
 import io
 from urllib.request import Request, urlopen
 
-import holidays
-
-
 # The world clock stores an offset rather than a named zone. Each real-world offset
 # therefore has one representative country whose national public holidays are shown.
 REPRESENTATIVE_ZONES = {
@@ -53,6 +50,8 @@ def japan_holidays():
 
 
 def world_holidays(country, year):
+    import holidays
+
     language = None if country in {"ZA", "NZ", "WS", "KI"} else "en_US"
     calendar = holidays.country_holidays(country, years=year, language=language)
     return sorted(calendar.items())

@@ -1,10 +1,27 @@
 from datetime import date, datetime, timezone
+from pathlib import Path
+import subprocess
+import sys
 import unittest
 
 from bridge import holiday_calendar
 
 
 class HolidayCalendarTests(unittest.TestCase):
+    def test_bridge_can_start_without_world_holiday_package(self):
+        # Start a fresh interpreter so an earlier test cannot supply a cached import.
+        script = """\
+import sys
+from datetime import date
+sys.modules["holidays"] = None
+from bridge.__main__ import holiday_calendar
+result = holiday_calendar.collect(1780272000, lambda: [(date(2026, 1, 1), "New Year")])
+assert [row["region"] for row in result["holidays"]] == ["日本"]
+assert "US:2026:ModuleNotFoundError" in result["worldErrors"]
+"""
+        subprocess.run([sys.executable, "-c", script], check=True,
+                       cwd=Path(__file__).resolve().parents[1])
+
     def test_japan_and_representative_offsets_are_generated(self):
         calls = []
         def japan():
