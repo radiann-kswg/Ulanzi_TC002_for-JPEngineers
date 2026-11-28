@@ -11,3 +11,4 @@ logs/
 /.claude/settings.local.json
 /.codex/hooks.json
 __pycache__/
+.private/
