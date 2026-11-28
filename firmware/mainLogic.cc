@@ -194,7 +194,7 @@ void update() {
     bool same=!previous.empty() && entered==app.entered && view.main==last.main && view.sub==last.sub &&
         view.service==last.service && view.servicePage==last.servicePage && view.menu==last.menu && view.popup==last.popup &&
         view.stampLine==last.stampLine && view.gauge==last.gauge && view.weekday==last.weekday &&
-        view.weekdayStyle==last.weekdayStyle && view.weekdayMode==last.weekdayMode &&
+        view.weekdayStyle==last.weekdayStyle &&
         view.calendarHoliday==last.calendarHoliday &&
         view.color==last.color && view.compact==last.compact && view.icon==last.icon &&
         view.ready==last.ready && view.paused==last.paused && view.weatherKind==last.weatherKind &&

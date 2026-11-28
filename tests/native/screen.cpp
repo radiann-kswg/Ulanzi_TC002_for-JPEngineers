@@ -1,23 +1,46 @@
 #include "../../firmware/screen.h"
 #include <cassert>
 using namespace tc;
+static uint32_t rgb(const Frame& frame,int x,int y) {
+    const auto* pixel=&frame.pixels[(y*52+x)*3];
+    return (uint32_t(pixel[0])<<16) | (uint32_t(pixel[1])<<8) | pixel[2];
+}
 int main() {
     Clock clock;
     assert(screen(clock,0,600).main=="時刻待ち");
     time_t utc=1704034800;
     assert(screen(clock,0,utc).main=="00:00:00");
-    const int fillRed[]={0x99,0xFF,0x99,0x00,0xFF,0x33,0xFF};
-    const int edgeRed[]={0x66,0x99,0x33,0x00,0x99,0x00,0x99};
+    const uint32_t fills[]={0xB296FF,0xFF8506,0x04BBC3,0x06E987,0xEEC804,0x1F8AFF,0xDB1836};
+    const uint32_t days[]={U'月',U'火',U'水',U'木',U'金',U'土',U'日'};
     for (int d=0;d<7;++d) {
         auto view=screen(clock,0,utc+d*86400);
         assert(view.weekday==d && view.weekdayStyle==d);
-        Glyph chars[]={{'?',4,1,{0},0},{U'月',10,9,{256},0}};
+        Glyph chars[]={{'?',4,1,{0},0},{days[d],10,9,{256},0}};
         Font font{chars,2};
         auto f=paint(view,font,font,font,0);
-        assert(f.pixels[(2*52+51)*3]==(d==0?0x99:0));
+        assert(rgb(f,51,2)==fills[d] && rgb(f,51,1)==0 && rgb(f,50,2)==0);
         for (int n=0;n<7;++n)
             for (int y=14;y<16;++y)
-                assert(f.pixels[(y*52+2+7*n)*3]==(n==d?fillRed[n]:edgeRed[n]));
+                for (int x=2+7*n;x<8+7*n;++x)
+                    assert(rgb(f,x,y)==(n==d?fills[d]:0x333333));
+    }
+    {
+        // In every mode only the original strokes light up, including on a Japanese holiday.
+        Glyph ring[]={{'?',4,1,{0},0},{U'月',6,5,{31,17,31},0}};
+        Font font{ring,2};
+        Clock holidayClock=clock;
+        holidayClock.feed.holidays.push_back({20240101,540,"日本","元日"});
+        const uint32_t holidayInk[]={green,fills[6],fills[6],fills[0],fills[6]};
+        for (int mode=0;mode<5;++mode) {
+            holidayClock.weekdayColoring=static_cast<WeekdayColoring>(mode);
+            auto f=paint(screen(holidayClock,0,utc),font,font,font,0);
+            for (int y=1;y<14;++y) for (int x=46;x<52;++x) {
+                bool stroke=x>=47 && y>=2 && (ring[1].rows[y-2] & (1u<<(x-47)));
+                assert(rgb(f,x,y)==(stroke?holidayInk[mode]:0));
+            }
+            assert(rgb(f,2,14)==holidayInk[mode]);
+            assert(rgb(f,2+7*5,14)==0x333333 && rgb(f,2+7*6,14)==0x333333);
+        }
     }
     assert(weekdayStyle(0,false,WeekdayColoring::Sunday)==-1);
     assert(weekdayStyle(6,false,WeekdayColoring::Sunday)==6);

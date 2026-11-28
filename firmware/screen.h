@@ -92,7 +92,6 @@ inline Layout screen(const Clock& clock, Millis now, time_t utc) {
         v.main=clockText(local,true);
         v.weekday=(local.tm_wday+6)%7; // Monday first, like the stock weekStart=1 setting.
         v.weekdayStyle=weekdayStyle(v.weekday,clock.japanHoliday(utc),clock.weekdayColoring);
-        v.weekdayMode=static_cast<int>(clock.weekdayColoring);
         return v;
     }
     if (c==3 && p==2) {
@@ -251,22 +250,13 @@ inline Frame paint(const Layout& view,const Font& denki,const Font& nega,const F
     if (view.gauge>=0) frame.bar(15,view.gauge,view.color);
     if (view.weekday>=0) {
         static const uint32_t kanji[]={U'月',U'火',U'水',U'木',U'金',U'土',U'日'};
-        static const uint32_t fill[]={0x9933FF,0xFF6600,0x99CCCC,0x00CC99,0xFFFF99,0x3366CC,0xFF0033};
-        static const uint32_t edge[]={0x660099,0x993300,0x336666,0x006633,0x996600,0x003366,0x990000};
+        static const uint32_t fill[]={0xB296FF,0xFF8506,0x04BBC3,0x06E987,0xEEC804,0x1F8AFF,0xDB1836};
         const Glyph* dayGlyph=denki.find(kanji[view.weekday]);
         uint32_t ink=view.weekdayStyle>=0?fill[view.weekdayStyle]:green;
-        uint32_t outline=view.weekdayStyle>=0?edge[view.weekdayStyle]:0x14563D;
-        if (dayGlyph) {
-            int x=52-dayGlyph->width,y=2;
-            static const int dx[]={-1,1,0,0},dy[]={0,0,-1,1};
-            for (int i=0;i<4;++i)
-                frame.mask(dayGlyph->rows,dayGlyph->width,x+dx[i],y+dy[i],outline);
-            frame.glyph(*dayGlyph,x,y,ink);
-        }
+        if (dayGlyph) frame.glyph(*dayGlyph,52-dayGlyph->width,2,ink);
+        // Only today's segment carries a colour; the other days stay a quiet grey.
         for (int day=0;day<7;++day) {
-            int style=view.weekdayMode>=0?weekdayStyle(
-                day,false,static_cast<WeekdayColoring>(view.weekdayMode)):-1;
-            uint32_t color=day==view.weekday?ink:(style>=0?edge[style]:0x172822);
+            uint32_t color=day==view.weekday?ink:0x333333;
             for (int x=2+day*7;x<2+day*7+6;++x)
                 for (int y=14;y<=15;++y) frame.pixel(x,y,color);
         }

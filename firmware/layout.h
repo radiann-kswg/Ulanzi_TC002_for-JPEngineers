@@ -8,7 +8,7 @@ enum class Icon { None, Hourglass, Stopwatch, Tomato, Cup, Briefcase, Play, Paus
 struct Layout {
     std::string main, sub, stampLine, weatherKind;
     uint32_t color=ivory;
-    int gauge=-1, weekday=-1, weekdayStyle=-1, weekdayMode=-1;
+    int gauge=-1, weekday=-1, weekdayStyle=-1;
     bool compact=false;
     Icon icon=Icon::None;
     bool paused=false, ready=false, automatic=false;
