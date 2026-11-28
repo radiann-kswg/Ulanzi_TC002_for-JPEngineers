@@ -35,6 +35,15 @@ $encoder = Read-Host "FFmpeg の実行ファイルのフルパス"
 py -3.12 scripts/build-device.py --regenerate-audio $encoder
 ```
 
+## 祝日データ
+
+PC ブリッジは、時計のカレンダーと曜日配色に使う祝日を次の2か所から実行時に取得します。祝日データはこのリポジトリに同梱しません。時計には日付・UTC 時差・地域コード・祝日名だけを送ります。
+
+| 対象 | 取得元 | 利用条件 |
+| --- | --- | --- |
+| 日本の祝日 | 内閣府「国民の祝日について」の CSV（`syukujitsu.csv`）。翌年分は例年2月に掲載されます。 | 内閣府ホームページの利用規約（公共データ利用規約 第1.0版）。出典：内閣府ホームページ「[国民の祝日について](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)」・[利用規約](https://www.cao.go.jp/notice/rule.html) |
+| 世界時計の代表地域の国民の祝日 | [Nager.Date](https://github.com/nager/Nager.Date)（ソフトウェアは MIT License、© 2016 nager.at）の公開 API（Nager.Holidays API v4）。種別が Public の全国祝日だけを使います。 | Nager.Holidays の利用規約では、Web API は私的・非営利の利用に限られ、商用利用にはスポンサー登録が必要です。可用性と正確性は保証されません。[利用規約](https://nagerholidays.com/legal/termsofservice)・[API](https://nagerholidays.com/api) |
+
 ## ビルド時に取得するソフトウェア
 
 - 機器側アプリは Ulanzi の公式 Z21 サンプルに本プロジェクトのコードを組み込んでビルドします。公式サンプル本体には GPL-3.0-or-later、BlueZ や TomThumb などには上流が記載した各ライセンスが適用されます。[公式サンプルのライセンス](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/LICENSE)・[上流の第三者告知](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/THIRD_PARTY_NOTICES.md)
