@@ -41,8 +41,8 @@ PC ブリッジは、時計のカレンダーと曜日配色に使う祝日を�
 
 | 対象 | 取得元 | 利用条件 |
 | --- | --- | --- |
-| 日本の祝日 | 内閣府「国民の祝日について」の CSV（`syukujitsu.csv`）。翌年分は例年2月に掲載されます。 | 内閣府ホームページの利用規約（公共データ利用規約 第1.0版）。出典：内閣府ホームページ「[国民の祝日について](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)」・[利用規約](https://www.cao.go.jp/notice/rule.html) |
-| 世界時計の代表地域の国民の祝日 | [holidays](https://github.com/vacanza/holidays) 0.109（Vacanza Team）が持つ各国の祝日規則からローカルで生成。実行時に外部の祝日 API へは接続しません。 | MIT License。[ライセンス](https://github.com/vacanza/holidays/blob/dev/LICENSE) |
+| 日本の祝日 | 内閣府「国民の祝日について」の CSV（`syukujitsu.csv`）。翌年分は例年2月に掲載されます。 | 内閣府ホームページの利用規約（公共データ利用規約 第1.0版）。出典：内閣府ホームページ「[国民の祝日について](https://www8.cao.go.jp/chosei/shukujitsu/gaiyou.html)」・[利用規約](https://www.cao.go.jp/notice/rule.html)。PC ブリッジが日付と祝日名を取り出し、時計の表示用に加工しています（加工：Ulanzi_TC002_for-JPEngineers）。 |
+| 世界時計の代表地域の国民の祝日 | [holidays](https://github.com/vacanza/holidays) 0.109（Vacanza Team）が持つ各国の祝日規則からローカルで生成。実行時に外部の祝日 API へは接続しません。 | MIT License（著作権表示：Vacanza Team and individual contributors ほか）。「PC 用ツールを準備」で PyPI から取得し、このリポジトリには同梱しません。[0.109 のライセンス](https://github.com/vacanza/holidays/blob/v0.109/LICENSE) |
 
 ## ビルド時に取得するソフトウェア
 
