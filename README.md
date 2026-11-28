@@ -8,6 +8,14 @@ Ulanzi TC002 の 52 × 16 ドット画面で日本語の時計、タイマー、
 | --- | --- |
 | [![時計の接続先や天気の取得地点を設定する画面](docs/studio-settings.png)](docs/studio-settings.png) | [![機器側アプリのビルドや TF カードの準備を行う画面](docs/studio-setup.png)](docs/studio-setup.png) |
 
+## できること
+
+| 時計だけで | PC ブリッジを加えると | Windows 設定アプリで |
+| --- | --- | --- |
+| 時刻・世界時計・カレンダー（月齢・日の出・日の入り）・ポモドーロ・BUSY・タイマー・ストップウォッチ。2進数の時報と、時計から取り込んだ標準効果音 | 天気、GitHub・Claude・Codex の予定・セッション・利用残量、7種類のスクロール通知、祝日（実装中） | 接続先・天気の地点・監視対象・曜日配色の設定、機器側アプリのビルド・一時実行・常設 |
+
+構成図と全機能の一覧は [機能の全体像](docs/features.md) にまとめています。
+
 ## 初めて電源を入れる方へ
 
 **一時実行と PC ブリッジには、標準OSでの Wi-Fi 接続が必要です。** すでに時計が PC と同じ LAN に再接続できる場合は、手順3から進めます。PC 上でのビルドと更新イメージの作成は時計の電源が切れた状態でも行えます。常設後も天気や開発情報を表示したい場合は、標準OSで先に Wi-Fi を設定してください。
@@ -122,9 +130,19 @@ $deviceIp = Read-Host "時計の IPv4 アドレス"
 .\scripts\tc002-http.ps1 -DeviceIp $deviceIp
 ```
 
-- [操作、PC ブリッジ、テスト方法](docs/operation.md)
-- [Windows設定アプリの要件](docs/studio-requirements.md)・[機器側アプリの要件と画面構成](docs/requirements.md)
-- [Ulanzi の公式開発リポジトリ](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002)・[FlyThings の IDE ガイド](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/IDE使用说明/说明文档.md)
+## ドキュメント
+
+| 文書 | 内容 |
+| --- | --- |
+| [機能の全体像](docs/features.md) | 構成図と、時計・PC ブリッジ・設定アプリの全機能の一覧 |
+| [スマートクロックの使い方](docs/operation.md) | ボタン操作、画面の読み方、PC ブリッジの設定、テスト方法 |
+| [Wi-Fi で常設する](docs/wifi-update.md) | 標準アプリ 1.1.4 からの書き込みと、独自時計からの更新 |
+| [機器側アプリの要件と画面構成](docs/requirements.md) | 時計の要件定義と受け入れ時の確認例 |
+| [Windows設定アプリの要件](docs/studio-requirements.md) | 設定アプリの機能と完了条件 |
+| [第三者素材の告知](THIRD_PARTY_NOTICES.md) | 書体・地図・祝日データ・効果音の出典と条件 |
+| [AGENTS.md](AGENTS.md) | Claude Code・Codex 共通の開発指示とブランチ運用 |
+
+上流の資料：[Ulanzi の公式開発リポジトリ](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002)・[FlyThings の IDE ガイド](https://github.com/UlanziTechnology/Ulanzi-U-Clock-TC002/blob/677a3aa89784bcb0b3e5ffa6db954efa0ce880de/IDE使用说明/说明文档.md)
 
 ## 動作確認
 
